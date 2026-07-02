@@ -1,16 +1,15 @@
 using System.Text;
 using Api.Dtos;
 using Api.Mapping;
-using Core.Enums;
-using Infrastructure.Data;
+using Application.Models;
+using Application.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Api.Controllers;
 
 [ApiController]
 [Route("api/invoices")]
-public sealed class InvoicesController(AppDbContext context) : ControllerBase
+public sealed class InvoicesController(IInvoiceService invoiceService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetInvoices(
@@ -19,65 +18,46 @@ public sealed class InvoicesController(AppDbContext context) : ControllerBase
         [FromQuery] string? status = null,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 200);
-
-        var query = context.Invoices
-            .AsNoTracking()
-            .Include(i => i.LineItems)
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(status))
+        try
         {
-            if (!EntityMappers.TryParseInvoiceStatus(status, out var parsedStatus))
-            {
-                return BadRequest("Estado inválido. Valores permitidos: paid, pending, overdue, draft.");
-            }
-
-            query = query.Where(i => i.Status == parsedStatus);
+            var result = await invoiceService.GetInvoicesAsync(
+                new InvoiceQueryModel { Page = page, PageSize = pageSize, Status = status },
+                cancellationToken);
+            return Ok(
+                new
+                {
+                    Items = result.Items.Select(i => i.ToInvoiceDto()).ToList(),
+                    result.TotalCount,
+                    result.Page,
+                    result.PageSize,
+                });
         }
-
-        var totalCount = await query.CountAsync(cancellationToken);
-        var invoices = await query
-            .OrderByDescending(i => i.IssueDate)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
-
-        return Ok(new
+        catch (InvalidOperationException ex)
         {
-            Items = invoices.Select(i => i.ToInvoiceDto()).ToList(),
-            TotalCount = totalCount,
-            Page = page,
-            PageSize = pageSize,
-        });
+            return BadRequest(ex.Message);
+        }
     }
 
     [HttpGet("stats")]
     public async Task<ActionResult<InvoiceStatsDto>> GetStats(CancellationToken cancellationToken = default)
     {
-        var invoices = context.Invoices.AsNoTracking();
-        var dto = new InvoiceStatsDto
-        {
-            TotalInvoices = await invoices.CountAsync(cancellationToken),
-            PaidInvoices = await invoices.CountAsync(i => i.Status == InvoiceStatus.Paid, cancellationToken),
-            PendingInvoices = await invoices.CountAsync(i => i.Status == InvoiceStatus.Pending, cancellationToken),
-            OverdueInvoices = await invoices.CountAsync(i => i.Status == InvoiceStatus.Overdue, cancellationToken),
-            DraftInvoices = await invoices.CountAsync(i => i.Status == InvoiceStatus.Draft, cancellationToken),
-            TotalBilledAmount = await invoices.SumAsync(i => i.Total, cancellationToken),
-        };
-
-        return Ok(dto);
+        var stats = await invoiceService.GetStatsAsync(cancellationToken);
+        return Ok(
+            new InvoiceStatsDto
+            {
+                TotalInvoices = stats.TotalInvoices,
+                PaidInvoices = stats.PaidInvoices,
+                PendingInvoices = stats.PendingInvoices,
+                OverdueInvoices = stats.OverdueInvoices,
+                DraftInvoices = stats.DraftInvoices,
+                TotalBilledAmount = stats.TotalBilledAmount,
+            });
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<InvoiceDto>> GetById(Guid id, CancellationToken cancellationToken = default)
     {
-        var invoice = await context.Invoices
-            .AsNoTracking()
-            .Include(i => i.LineItems)
-            .FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
-
+        var invoice = await invoiceService.GetByIdAsync(id, cancellationToken);
         if (invoice is null)
         {
             return NotFound("Factura no encontrada.");
@@ -89,33 +69,20 @@ public sealed class InvoicesController(AppDbContext context) : ControllerBase
     [HttpGet("{id:guid}/pdf")]
     public async Task<IActionResult> GetPdf(Guid id, CancellationToken cancellationToken = default)
     {
-        var invoice = await context.Invoices
-            .AsNoTracking()
-            .Include(i => i.LineItems)
-            .FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
-
-        if (invoice is null)
+        try
         {
-            return NotFound("Factura no encontrada.");
+            var invoice = await invoiceService.GetByIdAsync(id, cancellationToken);
+            if (invoice is null)
+            {
+                return NotFound("Factura no encontrada.");
+            }
+
+            var content = await invoiceService.BuildPdfContentAsync(id, cancellationToken);
+            return File(Encoding.UTF8.GetBytes(content), "application/pdf", $"{invoice.InvoiceNumber}.pdf");
         }
-
-        var content = new StringBuilder();
-        content.AppendLine($"Factura: {invoice.InvoiceNumber}");
-        content.AppendLine($"Cliente: {invoice.ClientName}");
-        content.AppendLine($"Fecha: {invoice.IssueDate:yyyy-MM-dd}");
-        content.AppendLine($"Vencimiento: {invoice.DueDate:yyyy-MM-dd}");
-        content.AppendLine($"Estado: {EntityMappers.ToFrontendInvoiceStatus(invoice.Status)}");
-        content.AppendLine($"Subtotal: COP {invoice.Subtotal:0.00}");
-        content.AppendLine($"IVA: COP {invoice.Tax:0.00}");
-        content.AppendLine($"Total: COP {invoice.Total:0.00}");
-        content.AppendLine();
-        content.AppendLine("Items:");
-
-        foreach (var item in invoice.LineItems)
+        catch (KeyNotFoundException ex)
         {
-            content.AppendLine($"- {item.Description} x{item.Quantity} @ COP {item.UnitPrice:0.00}");
+            return NotFound(ex.Message);
         }
-
-        return File(Encoding.UTF8.GetBytes(content.ToString()), "application/pdf", $"{invoice.InvoiceNumber}.pdf");
     }
 }

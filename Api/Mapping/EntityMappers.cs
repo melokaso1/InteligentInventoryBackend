@@ -1,7 +1,7 @@
 using Api.Dtos;
-using Api.Helpers;
-using Core.Entities;
-using Core.Enums;
+using Application.Common;
+using Domain.Entities;
+using Domain.Enums;
 
 namespace Api.Mapping;
 
