@@ -1,4 +1,5 @@
 using Application.Abstractions;
+using Infrastructure.Integrations;
 using Infrastructure.Persistence;
 using Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,8 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IInventoryMovementRepository, InventoryMovementRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        services.AddHttpClient<IChatbotGateway, ChatbotGateway>();
 
         return services;
     }
