@@ -29,8 +29,8 @@ public sealed class InventoryMovementRepository(AppDbContext context) : IInvento
 
         if (!string.IsNullOrWhiteSpace(productCode))
         {
-            var normalized = productCode.Trim().ToLower();
-            query = query.Where(m => m.Product.Code.ToLower() == normalized);
+            var normalized = productCode.Trim().ToUpperInvariant();
+            query = query.Where(m => m.Product.Code == normalized);
         }
 
         if (from.HasValue)

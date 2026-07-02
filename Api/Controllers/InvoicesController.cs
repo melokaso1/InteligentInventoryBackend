@@ -23,14 +23,7 @@ public sealed class InvoicesController(IInvoiceService invoiceService) : Control
             var result = await invoiceService.GetInvoicesAsync(
                 new InvoiceQueryModel { Page = page, PageSize = pageSize, Status = status },
                 cancellationToken);
-            return Ok(
-                new
-                {
-                    Items = result.Items.Select(i => i.ToInvoiceDto()).ToList(),
-                    result.TotalCount,
-                    result.Page,
-                    result.PageSize,
-                });
+            return Ok(result.ToPagedDto(i => i.ToInvoiceDto()));
         }
         catch (InvalidOperationException ex)
         {

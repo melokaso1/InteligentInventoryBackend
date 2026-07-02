@@ -23,13 +23,7 @@ public sealed class ProductsController(IProductService productService) : Control
             new ProductQueryModel { Query = q, Category = category, Page = page, PageSize = pageSize },
             cancellationToken);
 
-        return Ok(new
-        {
-            Items = result.Items.Select(p => p.ToProductDto()).ToList(),
-            result.TotalCount,
-            result.Page,
-            result.PageSize,
-        });
+        return Ok(result.ToPagedDto(p => p.ToProductDto()));
     }
 
     [HttpGet("stats")]

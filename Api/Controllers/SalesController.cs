@@ -34,14 +34,7 @@ public sealed class SalesController(ISaleService saleService) : ControllerBase
                 },
                 cancellationToken);
 
-            return Ok(
-                new
-                {
-                    Items = result.Items.Select(s => s.ToSaleDto()).ToList(),
-                    result.TotalCount,
-                    result.Page,
-                    result.PageSize,
-                });
+            return Ok(result.ToPagedDto(s => s.ToSaleDto()));
         }
         catch (InvalidOperationException ex)
         {

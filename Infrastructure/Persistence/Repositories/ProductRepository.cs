@@ -19,13 +19,13 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
 
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var term = query.Trim().ToLower();
+            var term = query.Trim().ToLowerInvariant();
             dbQuery = dbQuery.Where(p => p.Code.ToLower().Contains(term) || p.Name.ToLower().Contains(term));
         }
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            var normalized = category.Trim().ToLower();
+            var normalized = category.Trim().ToLowerInvariant();
             dbQuery = dbQuery.Where(p => p.Category.ToLower() == normalized);
         }
 
@@ -49,19 +49,19 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
 
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var term = query.Trim().ToLower();
+            var term = query.Trim().ToLowerInvariant();
             dbQuery = dbQuery.Where(p => p.Code.ToLower().Contains(term) || p.Name.ToLower().Contains(term));
         }
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            var normalized = category.Trim().ToLower();
+            var normalized = category.Trim().ToLowerInvariant();
             dbQuery = dbQuery.Where(p => p.Category.ToLower() == normalized);
         }
 
         if (!string.IsNullOrWhiteSpace(warehouse))
         {
-            var normalized = warehouse.Trim().ToLower();
+            var normalized = warehouse.Trim().ToLowerInvariant();
             dbQuery = dbQuery.Where(p => p.Warehouse.ToLower() == normalized);
         }
 

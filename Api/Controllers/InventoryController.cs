@@ -33,14 +33,7 @@ public sealed class InventoryController(IInventoryService inventoryService) : Co
             },
             cancellationToken);
 
-        return Ok(
-            new
-            {
-                Items = result.Items.Select(p => p.ToInventoryItemDto()).ToList(),
-                result.TotalCount,
-                result.Page,
-                result.PageSize,
-            });
+        return Ok(result.ToPagedDto(p => p.ToInventoryItemDto()));
     }
 
     [HttpGet("stats")]
@@ -80,14 +73,7 @@ public sealed class InventoryController(IInventoryService inventoryService) : Co
             },
             cancellationToken);
 
-        return Ok(
-            new
-            {
-                Items = result.Items.Select(m => m.ToStockMovementDto()).ToList(),
-                result.TotalCount,
-                result.Page,
-                result.PageSize,
-            });
+        return Ok(result.ToPagedDto(m => m.ToStockMovementDto()));
     }
 
     [HttpPost("adjustments")]
