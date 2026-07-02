@@ -51,3 +51,18 @@ public sealed class CreateSaleLineItemRequest
     public Guid ProductId { get; set; }
     public int Quantity { get; set; }
 }
+
+public sealed class CreateSaleFromChatbotRequest
+{
+    public string ProductCode { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
+    public string CustomerEmail { get; set; } = string.Empty;
+}
+
+public sealed class CreateSaleFromChatbotResponse
+{
+    public Guid SaleId { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public string InvoiceNumber { get; set; } = string.Empty;
+}

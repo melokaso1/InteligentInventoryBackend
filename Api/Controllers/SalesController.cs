@@ -3,6 +3,7 @@ using Api.Mapping;
 using Core.Entities;
 using Core.Enums;
 using Infrastructure.Data;
+using Infrastructure.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,7 +11,7 @@ namespace Api.Controllers;
 
 [ApiController]
 [Route("api/sales")]
-public sealed class SalesController(AppDbContext context) : ControllerBase
+public sealed class SalesController(AppDbContext context, SaleService saleService) : ControllerBase
 {
     private const decimal TaxRate = 0.08m;
 
@@ -269,6 +270,34 @@ public sealed class SalesController(AppDbContext context) : ControllerBase
         await context.SaveChangesAsync(cancellationToken);
 
         return Ok(invoice.ToInvoiceDto());
+    }
+
+    [HttpPost("from-chatbot")]
+    public async Task<ActionResult<CreateSaleFromChatbotResponse>> CreateSaleFromChatbot(
+        [FromBody] CreateSaleFromChatbotRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await saleService.CreateSaleFromChatbotAsync(
+                request.ProductCode,
+                request.Quantity,
+                request.CustomerName,
+                request.CustomerEmail,
+                cancellationToken);
+
+            return Ok(
+                new CreateSaleFromChatbotResponse
+                {
+                    SaleId = result.Sale.Id,
+                    OrderNumber = result.Sale.OrderNumber,
+                    InvoiceNumber = result.InvoiceNumber,
+                });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
     private static string BuildInitials(string input)
