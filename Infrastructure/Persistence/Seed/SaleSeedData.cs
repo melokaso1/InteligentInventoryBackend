@@ -5,94 +5,69 @@ namespace Infrastructure.Persistence.Seed;
 
 internal static class SaleSeedData
 {
-    internal static IEnumerable<Sale> Create(IReadOnlyDictionary<string, Product> products)
+    internal static IEnumerable<Sale> Create(
+        IReadOnlyDictionary<string, Product> products,
+        IReadOnlyDictionary<string, Customer> customers)
     {
-        var mj = products["PLZ-MJ-001"];
-        var tussi = products["PLZ-TUS-015"];
-        var popper = products["PLZ-POP-007"];
-        var mdm = products["PLZ-MDM-088"];
-        var gel = products["PLZ-LSD-044"];
-        var hongos = products["PLZ-HNG-033"];
+        var laptop = products["PLZ-LAP-001"];
+        var keyboard = products["PLZ-KBD-001"];
+        var mouse = products["PLZ-MSE-001"];
+        var monitor = products["PLZ-MON-001"];
+        var hub = products["PLZ-HUB-001"];
+        var chair = products["PLZ-CHR-001"];
+
+        var carolina = customers["carolina.mendez@techsolutions.co"];
+        var andres = customers["andres.vargas@grupoandina.co"];
+        var laura = customers["laura.herrera@logisticaexpress.co"];
+        var miguel = customers["miguel.torres@constructorametro.co"];
 
         return
         [
-            new Sale
-            {
-                Id = Guid.NewGuid(),
-                OrderNumber = "ORD-94210",
-                CustomerName = "Jonathan Doe",
-                CustomerEmail = "jonathan.doe@corp.com",
-                Origin = SaleOrigin.Chatbot,
-                Status = SaleStatus.Invoiced,
-                Subtotal = 2_250_000,
-                Tax = 180_000,
-                Total = 2_430_000,
-                CreatedAt = new DateTime(2023, 10, 24, 14, 22, 0, DateTimeKind.Utc),
-                LineItems =
-                [
-                    new SaleLineItem
-                    {
-                        Id = Guid.NewGuid(),
-                        ProductId = mj.Id,
-                        Description = $"{mj.Name} ({mj.Code})",
-                        Quantity = 50,
-                        UnitPrice = mj.Price,
-                    },
-                ],
-            },
-            new Sale
-            {
-                Id = Guid.NewGuid(),
-                OrderNumber = "ORD-94211",
-                CustomerName = "Alice Smith",
-                CustomerEmail = "alice.smith@corp.com",
-                Origin = SaleOrigin.Manual,
-                Status = SaleStatus.Pending,
-                Subtotal = 508_000,
-                Tax = 40_640,
-                Total = 548_640,
-                CreatedAt = new DateTime(2023, 10, 24, 15, 5, 0, DateTimeKind.Utc),
-                LineItems =
-                [
-                    new SaleLineItem { Id = Guid.NewGuid(), ProductId = tussi.Id, Description = $"{tussi.Name} ({tussi.Code})", Quantity = 2, UnitPrice = tussi.Price },
-                    new SaleLineItem { Id = Guid.NewGuid(), ProductId = popper.Id, Description = $"{popper.Name} ({popper.Code})", Quantity = 3, UnitPrice = popper.Price },
-                ],
-            },
-            new Sale
-            {
-                Id = Guid.NewGuid(),
-                OrderNumber = "ORD-94212",
-                CustomerName = "Robert King",
-                CustomerEmail = "robert.king@corp.com",
-                Origin = SaleOrigin.Chatbot,
-                Status = SaleStatus.Confirmed,
-                Subtotal = 936_000,
-                Tax = 74_880,
-                Total = 1_010_880,
-                CreatedAt = new DateTime(2023, 10, 23, 9, 12, 0, DateTimeKind.Utc),
-                LineItems =
-                [
-                    new SaleLineItem { Id = Guid.NewGuid(), ProductId = mdm.Id, Description = $"{mdm.Name} ({mdm.Code})", Quantity = 2, UnitPrice = mdm.Price },
-                    new SaleLineItem { Id = Guid.NewGuid(), ProductId = gel.Id, Description = $"{gel.Name} ({gel.Code})", Quantity = 10, UnitPrice = gel.Price },
-                ],
-            },
-            new Sale
-            {
-                Id = Guid.NewGuid(),
-                OrderNumber = "ORD-94213",
-                CustomerName = "Elena Lopez",
-                CustomerEmail = "elena.lopez@corp.com",
-                Origin = SaleOrigin.Manual,
-                Status = SaleStatus.Cancelled,
-                Subtotal = 448_000,
-                Tax = 35_840,
-                Total = 483_840,
-                CreatedAt = new DateTime(2023, 10, 23, 11, 30, 0, DateTimeKind.Utc),
-                LineItems =
-                [
-                    new SaleLineItem { Id = Guid.NewGuid(), ProductId = hongos.Id, Description = $"{hongos.Name} ({hongos.Code})", Quantity = 4, UnitPrice = hongos.Price },
-                ],
-            },
+            Sale("ORD-94210", carolina, SaleOrigin.Chatbot, SaleStatus.Invoiced,
+                new DateTime(2025, 6, 24, 14, 22, 0, DateTimeKind.Utc), 21_250_000, 1_700_000, 22_950_000,
+                [Line(laptop, 5)]),
+            Sale("ORD-94211", andres, SaleOrigin.Manual, SaleStatus.Pending,
+                new DateTime(2025, 6, 24, 15, 5, 0, DateTimeKind.Utc), 1_980_000, 158_400, 2_138_400,
+                [Line(keyboard, 2), Line(mouse, 3)]),
+            Sale("ORD-94212", laura, SaleOrigin.Chatbot, SaleStatus.Confirmed,
+                new DateTime(2025, 6, 23, 9, 12, 0, DateTimeKind.Utc), 3_400_000, 272_000, 3_672_000,
+                [Line(monitor, 2), Line(hub, 4)]),
+            Sale("ORD-94213", miguel, SaleOrigin.Manual, SaleStatus.Cancelled,
+                new DateTime(2025, 6, 23, 11, 30, 0, DateTimeKind.Utc), 1_780_000, 142_400, 1_922_400,
+                [Line(chair, 2)]),
         ];
     }
+
+    private static SaleLineItem Line(Product p, int qty) => new()
+    {
+        Id = Guid.NewGuid(),
+        ProductId = p.Id,
+        Description = $"{p.Name} ({p.Code})",
+        Quantity = qty,
+        UnitPrice = p.Price,
+    };
+
+    private static Sale Sale(
+        string orderNumber,
+        Customer customer,
+        SaleOrigin origin,
+        SaleStatus status,
+        DateTime createdAt,
+        decimal subtotal,
+        decimal tax,
+        decimal total,
+        List<SaleLineItem> lines) => new()
+    {
+        Id = Guid.NewGuid(),
+        OrderNumber = orderNumber,
+        CustomerName = customer.FullName,
+        CustomerEmail = customer.Email,
+        Origin = origin,
+        Status = status,
+        Subtotal = subtotal,
+        Tax = tax,
+        Total = total,
+        CreatedAt = createdAt,
+        LineItems = lines,
+    };
 }

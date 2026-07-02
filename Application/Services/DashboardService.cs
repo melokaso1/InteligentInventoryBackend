@@ -3,6 +3,7 @@ using Application.Abstractions;
 using Application.Common;
 using Application.Models;
 using Domain.Enums;
+using Domain.Extensions;
 
 namespace Application.Services;
 
@@ -22,7 +23,7 @@ public sealed class DashboardService(
         var todaySales = await saleRepository.SumTotalByDateRangeAsync(today, tomorrow, cancellationToken);
         var allProducts = await productRepository.GetAllAsync(cancellationToken);
         var lowStockCount = allProducts.Count(
-            p => StockLevelHelper.GetStockLevel(p.Stock, p.MaxStock).StockLevel is "critical" or "low");
+            p => StockLevelHelper.GetStockLevel(p.GetStock(), p.GetMaxStock()).StockLevel is "critical" or "low");
         var chatbotSalesCount = await saleRepository.CountByOriginAsync(SaleOrigin.Chatbot, cancellationToken);
 
         return
@@ -77,8 +78,8 @@ public sealed class DashboardService(
     public async Task<List<LowStockItemModel>> GetLowStockAsync(CancellationToken cancellationToken = default)
     {
         var products = (await productRepository.GetAllAsync(cancellationToken))
-            .Where(p => StockLevelHelper.GetStockLevel(p.Stock, p.MaxStock).StockLevel is "critical" or "low")
-            .OrderBy(p => p.Stock)
+            .Where(p => StockLevelHelper.GetStockLevel(p.GetStock(), p.GetMaxStock()).StockLevel is "critical" or "low")
+            .OrderBy(p => p.GetStock())
             .ToList();
 
         return products
@@ -88,9 +89,9 @@ public sealed class DashboardService(
                     Id = p.Id,
                     Name = p.Name,
                     Sku = p.Code,
-                    CurrentStock = p.Stock,
-                    ReorderLevel = p.MaxStock,
-                    Status = StockLevelHelper.GetLowStockStatus(p.Stock, p.MaxStock),
+                    CurrentStock = p.GetStock(),
+                    ReorderLevel = p.GetMaxStock(),
+                    Status = StockLevelHelper.GetLowStockStatus(p.GetStock(), p.GetMaxStock()),
                 })
             .ToList();
     }

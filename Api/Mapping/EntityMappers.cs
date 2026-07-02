@@ -2,6 +2,7 @@ using Api.Dtos;
 using Application.Common;
 using Domain.Entities;
 using Domain.Enums;
+using Domain.Extensions;
 
 namespace Api.Mapping;
 
@@ -13,10 +14,10 @@ public static class EntityMappers
             Id = product.Id,
             Code = product.Code,
             Name = product.Name,
-            Category = product.Category,
+            Category = product.Category.Name,
             Price = product.Price,
-            Stock = product.Stock,
-            MaxStock = product.MaxStock,
+            Stock = product.GetStock(),
+            MaxStock = product.GetMaxStock(),
             Status = ToFrontendProductStatus(product.Status),
             Icon = product.Icon,
             Description = product.Description,
@@ -24,15 +25,15 @@ public static class EntityMappers
 
     public static InventoryItemDto ToInventoryItemDto(this Product product)
     {
-        var (stockLevel, stockPercent) = StockLevelHelper.GetStockLevel(product.Stock, product.MaxStock);
+        var (stockLevel, stockPercent) = StockLevelHelper.GetStockLevel(product.GetStock(), product.GetMaxStock());
         return new InventoryItemDto
         {
             Id = product.Id,
             Sku = product.Code,
             Name = product.Name,
-            Category = product.Category,
-            Warehouse = product.Warehouse,
-            Quantity = product.Stock,
+            Category = product.Category.Name,
+            Warehouse = product.GetWarehouseName(),
+            Quantity = product.GetStock(),
             UnitPrice = product.Price,
             StockLevel = stockLevel,
             StockPercent = stockPercent,
@@ -55,8 +56,8 @@ public static class EntityMappers
         new()
         {
             Id = sale.Id,
-            Customer = sale.CustomerName,
-            Email = sale.CustomerEmail,
+            Customer = sale.Customer?.FullName ?? sale.CustomerName,
+            Email = sale.Customer?.Email ?? sale.CustomerEmail,
             Origin = ToFrontendSaleOrigin(sale.Origin),
             Date = sale.CreatedAt.ToString("O"),
             Total = sale.Total,
@@ -136,7 +137,7 @@ public static class EntityMappers
             Description = $"{invoice.ClientName} - {ToFrontendInvoiceStatus(invoice.Status)}",
             Time = invoice.IssueDate.ToString("O"),
             DotBg = "bg-emerald-100",
-            DotBorder = "border-emerald-300",
+            DotBorder = "border-amber-300",
         };
 
     public static string ToFrontendProductStatus(ProductStatus status) => status switch

@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Application.Abstractions;
 using Application.Models;
@@ -31,9 +32,15 @@ public sealed class ChatbotGateway(
 
         try
         {
+            object? statePayload = null;
+            if (!string.IsNullOrWhiteSpace(request.StateJson))
+            {
+                statePayload = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(request.StateJson);
+            }
+
             using var response = await httpClient.PostAsJsonAsync(
                 endpoint,
-                new FastApiChatRequest(request.SessionId, request.Message),
+                new FastApiChatRequest(request.SessionId, request.Message, statePayload),
                 cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -55,8 +62,32 @@ public sealed class ChatbotGateway(
         {
             logger.LogError(ex, "No se pudo contactar al chatbot en {Endpoint}", endpoint);
             throw new InvalidOperationException(
-                "No se pudo conectar con el chatbot. Verifica que el servicio FastAPI esté en ejecución.",
+                "No se pudo conectar con el chatbot FastAPI en el puerto 8000. Verifica que el servicio esté en ejecución (cd LLMChatBot && python run.py).",
                 ex);
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Timeout al contactar al chatbot en {Endpoint}", endpoint);
+            throw new InvalidOperationException(
+                "El servicio de chatbot no respondió a tiempo. Verifica que FastAPI esté en ejecución en http://localhost:8000.",
+                ex);
+        }
+    }
+
+    public async Task<bool> PingHealthAsync(CancellationToken cancellationToken = default)
+    {
+        var baseUrl = configuration["Chatbot:BaseUrl"] ?? "http://localhost:8000";
+        var endpoint = $"{baseUrl.TrimEnd('/')}/health";
+
+        try
+        {
+            using var response = await httpClient.GetAsync(endpoint, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            logger.LogWarning(ex, "Health check del chatbot falló en {Endpoint}", endpoint);
+            return false;
         }
     }
 
@@ -65,6 +96,9 @@ public sealed class ChatbotGateway(
         {
             Response = payload.Response,
             State = payload.State,
+            StateJson = payload.StateJson is null
+                ? null
+                : JsonSerializer.Serialize(payload.StateJson),
             InvoiceNumber = payload.InvoiceNumber,
             Chips = payload.Chips,
             OperationSummary = payload.OperationSummary is null
@@ -85,7 +119,8 @@ public sealed class ChatbotGateway(
 
     private sealed record FastApiChatRequest(
         [property: JsonPropertyName("sessionId")] string SessionId,
-        [property: JsonPropertyName("message")] string Message);
+        [property: JsonPropertyName("message")] string Message,
+        [property: JsonPropertyName("state")] object? State);
 
     private sealed class FastApiChatResponse
     {
@@ -94,6 +129,9 @@ public sealed class ChatbotGateway(
 
         [JsonPropertyName("state")]
         public string State { get; set; } = "idle";
+
+        [JsonPropertyName("stateJson")]
+        public JsonElement? StateJson { get; set; }
 
         [JsonPropertyName("invoiceNumber")]
         public string? InvoiceNumber { get; set; }

@@ -5,4 +5,5 @@ namespace Application.Abstractions;
 public interface IChatbotGateway
 {
     Task<ChatMessageResult> SendMessageAsync(ChatMessageRequest request, CancellationToken cancellationToken = default);
+    Task<bool> PingHealthAsync(CancellationToken cancellationToken = default);
 }

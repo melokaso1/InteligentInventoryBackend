@@ -5,42 +5,52 @@ namespace Infrastructure.Persistence.Seed;
 
 internal static class InvoiceSeedData
 {
-    internal static IEnumerable<Invoice> Create(IReadOnlyDictionary<string, Product> products)
+    internal static IEnumerable<Invoice> Create(
+        IReadOnlyDictionary<string, Product> products,
+        IReadOnlyDictionary<string, Customer> customers)
     {
-        var mj = products["PLZ-MJ-001"];
-        var popper = products["PLZ-POP-007"];
-        var lsd = products["PLZ-LSD-042"];
-        var tussi = products["PLZ-TUS-015"];
-        var gel = products["PLZ-LSD-044"];
-        var ket = products["PLZ-KET-021"];
-        var dmt = products["PLZ-DMT-012"];
+        var laptop = products["PLZ-LAP-001"];
+        var monitor = products["PLZ-MON-001"];
+        var keyboard = products["PLZ-KBD-001"];
+        var ssd = products["PLZ-HDD-001"];
+        var ups = products["PLZ-UPS-001"];
+        var toner = products["PLZ-PRN-002"];
+        var paper = products["PLZ-PAP-001"];
+        var webcam = products["PLZ-WEB-001"];
+        var desk = products["PLZ-DSK-001"];
 
         return
         [
-            Inv("INV-2024-001", "Manolo \"El Fumeta\" García", "MG", InvoiceStatus.Paid,
-                new DateTime(2024, 10, 12, 0, 0, 0, DateTimeKind.Utc), new DateTime(2024, 11, 12, 0, 0, 0, DateTimeKind.Utc),
-                2_706_000, 216_480, 2_922_480,
-                [Line(mj, 50), Line(popper, 6)]),
-            Inv("INV-2024-002", "Paca \"La Pastillera\" Jiménez", "PJ", InvoiceStatus.Pending,
-                new DateTime(2024, 10, 15, 0, 0, 0, DateTimeKind.Utc), new DateTime(2024, 11, 15, 0, 0, 0, DateTimeKind.Utc),
-                3_420_000, 273_600, 3_693_600,
-                [Line(lsd, 40), Line(tussi, 8), Line(gel, 5)]),
-            Inv("INV-2024-003", "Vicente \"K-Hole\" Martínez", "VM", InvoiceStatus.Overdue,
-                new DateTime(2024, 10, 18, 0, 0, 0, DateTimeKind.Utc), new DateTime(2024, 11, 18, 0, 0, 0, DateTimeKind.Utc),
-                1_092_000, 87_360, 1_179_360,
-                [Line(ket, 2), Line(dmt, 1)]),
-            Inv("INV-2024-004", "Rosario \"La Chalota\" Delgado", "RD", InvoiceStatus.Draft,
-                new DateTime(2024, 10, 20, 0, 0, 0, DateTimeKind.Utc), new DateTime(2024, 11, 20, 0, 0, 0, DateTimeKind.Utc),
-                5_160_000, 412_800, 5_572_800,
-                [Line(mj, 80), Line(products["PLZ-MDM-088"], 10)]),
-            Inv("INV-2024-005", "Fermín \"El Perlador\" Iglesias", "FI", InvoiceStatus.Paid,
-                new DateTime(2024, 10, 22, 0, 0, 0, DateTimeKind.Utc), new DateTime(2024, 11, 22, 0, 0, 0, DateTimeKind.Utc),
-                4_736_000, 378_880, 5_114_880,
-                [Line(products["PLZ-COC-099"], 8), Line(products["PLZ-HNG-034"], 4)]),
-            Inv("INV-2024-006", "Encarna \"Popper Queen\" Torres", "ET", InvoiceStatus.Pending,
-                new DateTime(2024, 10, 25, 0, 0, 0, DateTimeKind.Utc), new DateTime(2024, 11, 25, 0, 0, 0, DateTimeKind.Utc),
-                2_558_000, 204_640, 2_762_640,
-                [Line(popper, 20), Line(products["PLZ-POP-008"], 15)]),
+            Inv("INV-2025-001", customers["carolina.mendez@techsolutions.co"], "TC", InvoiceStatus.Paid,
+                new DateTime(2025, 6, 12, 0, 0, 0, DateTimeKind.Utc), new DateTime(2025, 7, 12, 0, 0, 0, DateTimeKind.Utc),
+                22_700_000, 1_816_000, 24_516_000,
+                "Equipamiento de estaciones de trabajo — Q2",
+                [Line(laptop, 5), Line(monitor, 1)]),
+            Inv("INV-2025-002", customers["andres.vargas@grupoandina.co"], "GA", InvoiceStatus.Pending,
+                new DateTime(2025, 6, 15, 0, 0, 0, DateTimeKind.Utc), new DateTime(2025, 7, 15, 0, 0, 0, DateTimeKind.Utc),
+                3_960_000, 316_800, 4_276_800,
+                "Periféricos y almacenamiento para oficina Medellín",
+                [Line(keyboard, 4), Line(ssd, 6)]),
+            Inv("INV-2025-003", customers["laura.herrera@logisticaexpress.co"], "LE", InvoiceStatus.Overdue,
+                new DateTime(2025, 6, 18, 0, 0, 0, DateTimeKind.Utc), new DateTime(2025, 7, 18, 0, 0, 0, DateTimeKind.Utc),
+                4_740_000, 379_200, 5_119_200,
+                "Respaldo eléctrico para sala de servidores",
+                [Line(ups, 3)]),
+            Inv("INV-2025-004", customers["miguel.torres@constructorametro.co"], "CM", InvoiceStatus.Draft,
+                new DateTime(2025, 6, 20, 0, 0, 0, DateTimeKind.Utc), new DateTime(2025, 7, 20, 0, 0, 0, DateTimeKind.Utc),
+                8_400_000, 672_000, 9_072_000,
+                "Mobiliario para nueva sede administrativa",
+                [Line(desk, 5)]),
+            Inv("INV-2025-005", customers["edu@edutech.co"], "EI", InvoiceStatus.Paid,
+                new DateTime(2025, 6, 22, 0, 0, 0, DateTimeKind.Utc), new DateTime(2025, 7, 22, 0, 0, 0, DateTimeKind.Utc),
+                2_455_000, 196_400, 2_651_400,
+                "Consumibles y videoconferencia — aula virtual",
+                [Line(toner, 5), Line(paper, 20), Line(webcam, 3)]),
+            Inv("INV-2025-006", customers["oficinas@valle.co"], "OV", InvoiceStatus.Pending,
+                new DateTime(2025, 6, 25, 0, 0, 0, DateTimeKind.Utc), new DateTime(2025, 7, 25, 0, 0, 0, DateTimeKind.Utc),
+                5_710_000, 456_800, 6_166_800,
+                "Renovación de monitores sala de juntas",
+                [Line(monitor, 3), Line(products["PLZ-MON-002"], 2)]),
         ];
     }
 
@@ -52,14 +62,24 @@ internal static class InvoiceSeedData
         UnitPrice = p.Price,
     };
 
-    private static Invoice Inv(string number, string client, string initials, InvoiceStatus status,
-        DateTime issue, DateTime due, decimal subtotal, decimal tax, decimal total, List<InvoiceLineItem> lines) => new()
+    private static Invoice Inv(
+        string number,
+        Customer customer,
+        string initials,
+        InvoiceStatus status,
+        DateTime issue,
+        DateTime due,
+        decimal subtotal,
+        decimal tax,
+        decimal total,
+        string billingNote,
+        List<InvoiceLineItem> lines) => new()
     {
         Id = Guid.NewGuid(),
         InvoiceNumber = number,
-        ClientName = client,
+        ClientName = customer.FullName,
         ClientInitials = initials,
-        BillingNote = "Factura El Plonsazo — datos de demostración.",
+        BillingNote = billingNote,
         Status = status,
         IssueDate = issue,
         DueDate = due,

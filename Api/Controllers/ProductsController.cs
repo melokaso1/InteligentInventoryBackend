@@ -3,10 +3,13 @@ using Api.Dtos;
 using Api.Mapping;
 using Application.Models;
 using Application.Services;
+using Domain.Extensions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
+[Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/products")]
 public sealed class ProductsController(IProductService productService) : ControllerBase
@@ -42,6 +45,13 @@ public sealed class ProductsController(IProductService productService) : Control
             });
     }
 
+    [HttpGet("categories")]
+    public async Task<ActionResult<IReadOnlyList<string>>> GetCategories(CancellationToken cancellationToken = default)
+    {
+        var categories = await productService.GetCategoriesAsync(cancellationToken);
+        return Ok(categories);
+    }
+
     [HttpGet("export/csv")]
     public async Task<IActionResult> ExportCsv(CancellationToken cancellationToken = default)
     {
@@ -52,7 +62,7 @@ public sealed class ProductsController(IProductService productService) : Control
         foreach (var product in products)
         {
             csv.AppendLine(
-                $"{product.Id},{Escape(product.Code)},{Escape(product.Name)},{Escape(product.Category)},{product.Price:0.00},{product.Stock},{product.MaxStock},{EntityMappers.ToFrontendProductStatus(product.Status)},{Escape(product.Icon)},{Escape(product.Description)}");
+                $"{product.Id},{Escape(product.Code)},{Escape(product.Name)},{Escape(product.Category.Name)},{product.Price:0.00},{product.GetStock()},{product.GetMaxStock()},{EntityMappers.ToFrontendProductStatus(product.Status)},{Escape(product.Icon)},{Escape(product.Description)}");
         }
 
         return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", "productos.csv");

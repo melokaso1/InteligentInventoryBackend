@@ -10,4 +10,5 @@ public interface IInventoryService
     Task<PagedResult<InventoryMovement>> GetMovementsAsync(InventoryMovementQueryModel query, CancellationToken cancellationToken = default);
     Task<InventoryMovement> CreateAdjustmentAsync(AdjustmentModel request, CancellationToken cancellationToken = default);
     Task<List<Product>> GetInventoryForExportAsync(CancellationToken cancellationToken = default);
+    Task<List<string>> GetCategoriesAsync(CancellationToken cancellationToken = default);
 }

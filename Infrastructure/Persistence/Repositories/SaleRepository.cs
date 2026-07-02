@@ -88,6 +88,7 @@ public sealed class SaleRepository(AppDbContext context) : ISaleRepository
     private IQueryable<Sale> BuildBaseQuery() =>
         context.Sales
             .AsNoTracking()
+            .Include(s => s.Customer)
             .Include(s => s.LineItems)
             .ThenInclude(li => li.Product)
             .Include(s => s.Invoice)

@@ -7,6 +7,7 @@ public interface IProductService
 {
     Task<PagedResult<Product>> GetProductsAsync(ProductQueryModel query, CancellationToken cancellationToken = default);
     Task<ProductStatsModel> GetStatsAsync(CancellationToken cancellationToken = default);
+    Task<List<string>> GetCategoriesAsync(CancellationToken cancellationToken = default);
     Task<List<Product>> GetProductsForExportAsync(CancellationToken cancellationToken = default);
     Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Product> CreateAsync(CreateProductModel request, CancellationToken cancellationToken = default);

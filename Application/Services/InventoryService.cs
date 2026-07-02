@@ -3,11 +3,14 @@ using Application.Common;
 using Application.Models;
 using Domain.Entities;
 using Domain.Enums;
+using Domain.Extensions;
 
 namespace Application.Services;
 
 public sealed class InventoryService(
+    IInventoryRepository inventoryRepository,
     IProductRepository productRepository,
+    IWarehouseRepository warehouseRepository,
     IInventoryMovementRepository movementRepository,
     IUnitOfWork unitOfWork) : IInventoryService
 {
@@ -16,22 +19,30 @@ public sealed class InventoryService(
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, 200);
 
-        var filteredProducts = await productRepository.GetFilteredAsync(
+        var inventories = await inventoryRepository.GetFilteredAsync(
             query.Query,
             query.Category,
             query.Warehouse,
             cancellationToken);
 
+        var products = inventories
+            .Select(i =>
+            {
+                i.Product.Inventories = [i];
+                return i.Product;
+            })
+            .ToList();
+
         var normalizedStockLevel = query.StockLevel?.Trim().ToLowerInvariant();
         if (!string.IsNullOrWhiteSpace(normalizedStockLevel))
         {
-            filteredProducts = filteredProducts
-                .Where(p => StockLevelHelper.GetStockLevel(p.Stock, p.MaxStock).StockLevel == normalizedStockLevel)
+            products = products
+                .Where(p => StockLevelHelper.GetStockLevel(p.GetStock(), p.GetMaxStock()).StockLevel == normalizedStockLevel)
                 .ToList();
         }
 
-        var totalCount = filteredProducts.Count;
-        var items = filteredProducts
+        var totalCount = products.Count;
+        var items = products
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToList();
@@ -47,14 +58,15 @@ public sealed class InventoryService(
 
     public async Task<InventoryStatsModel> GetStatsAsync(CancellationToken cancellationToken = default)
     {
-        var products = await productRepository.GetAllAsync(cancellationToken);
+        var inventories = await inventoryRepository.GetAllWithDetailsAsync(cancellationToken);
         return new InventoryStatsModel
         {
-            TotalItems = products.Count,
-            TotalUnits = products.Sum(p => p.Stock),
-            TotalValue = products.Sum(p => p.Price * p.Stock),
-            LowStockCount = products.Count(p => StockLevelHelper.GetStockLevel(p.Stock, p.MaxStock).StockLevel is "low" or "critical"),
-            OutOfStockCount = products.Count(p => p.Stock <= 0),
+            TotalItems = inventories.Select(i => i.ProductId).Distinct().Count(),
+            TotalUnits = inventories.Sum(i => i.CurrentStock),
+            TotalValue = inventories.Sum(i => i.Product.Price * i.CurrentStock),
+            LowStockCount = inventories.Count(i =>
+                StockLevelHelper.GetStockLevel(i.CurrentStock, i.MaxStock).StockLevel is "low" or "critical"),
+            OutOfStockCount = inventories.Count(i => i.CurrentStock <= 0),
         };
     }
 
@@ -99,15 +111,37 @@ public sealed class InventoryService(
             throw new KeyNotFoundException("Producto no encontrado para ajustar inventario.");
         }
 
-        var resultingStock = product.Stock + request.QuantityChange;
+        var defaultWarehouse = await warehouseRepository.GetDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("No hay almacén configurado.");
+
+        var inventory = product.Inventories.FirstOrDefault(i => i.WarehouseId == defaultWarehouse.Id);
+        if (inventory is null)
+        {
+            inventory = new Inventory
+            {
+                Id = Guid.NewGuid(),
+                ProductId = product.Id,
+                WarehouseId = defaultWarehouse.Id,
+                CurrentStock = 0,
+                MinStock = 0,
+                MaxStock = 100,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            inventoryRepository.Add(inventory);
+            product.Inventories.Add(inventory);
+        }
+
+        var resultingStock = inventory.CurrentStock + request.QuantityChange;
         if (resultingStock < 0)
         {
             throw new InvalidOperationException("El ajuste deja el stock en negativo.");
         }
 
-        product.Stock = resultingStock;
+        inventory.CurrentStock = resultingStock;
+        inventory.UpdatedAt = DateTime.UtcNow;
         product.UpdatedAt = DateTime.UtcNow;
-        if (product.Stock <= 0)
+
+        if (inventory.CurrentStock <= 0)
         {
             product.Status = ProductStatus.OutOfStock;
         }
@@ -121,6 +155,8 @@ public sealed class InventoryService(
             Id = Guid.NewGuid(),
             ProductId = product.Id,
             Product = product,
+            InventoryId = inventory.Id,
+            Inventory = inventory,
             Type = StockMovementType.Adjustment,
             QuantityChange = request.QuantityChange,
             Reason = string.IsNullOrWhiteSpace(request.Reason) ? "Ajuste manual" : request.Reason.Trim(),
@@ -135,6 +171,9 @@ public sealed class InventoryService(
 
     public Task<List<Product>> GetInventoryForExportAsync(CancellationToken cancellationToken = default) =>
         productRepository.GetAllOrderedByCodeAsync(cancellationToken);
+
+    public Task<List<string>> GetCategoriesAsync(CancellationToken cancellationToken = default) =>
+        productRepository.GetDistinctCategoriesAsync(cancellationToken);
 
     private static StockMovementType? TryParseMovementType(string? type)
     {

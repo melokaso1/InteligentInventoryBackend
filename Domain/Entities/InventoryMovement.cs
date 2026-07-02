@@ -7,6 +7,8 @@ public class InventoryMovement
     public Guid Id { get; set; }
     public Guid ProductId { get; set; }
     public Product Product { get; set; } = null!;
+    public Guid? InventoryId { get; set; }
+    public Inventory? Inventory { get; set; }
     public StockMovementType Type { get; set; }
     public int QuantityChange { get; set; }
     public string Reason { get; set; } = string.Empty;

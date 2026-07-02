@@ -34,3 +34,19 @@ public sealed class InvoiceStatsDto
     public int DraftInvoices { get; set; }
     public decimal TotalBilledAmount { get; set; }
 }
+
+public sealed class CreateInvoiceRequest
+{
+    public string Client { get; set; } = string.Empty;
+    public string BillingNote { get; set; } = string.Empty;
+    public string Date { get; set; } = string.Empty;
+    public string DueDate { get; set; } = string.Empty;
+    public List<CreateInvoiceLineItemRequest> LineItems { get; set; } = [];
+}
+
+public sealed class CreateInvoiceLineItemRequest
+{
+    public string Description { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+}

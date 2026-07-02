@@ -2,10 +2,12 @@ using System.Globalization;
 using Api.Dtos;
 using Application.Models;
 using Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
+[Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/dashboard")]
 public sealed class DashboardController(IDashboardService dashboardService) : ControllerBase

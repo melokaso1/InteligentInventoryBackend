@@ -8,6 +8,13 @@ namespace Infrastructure.Persistence.Repositories;
 
 public sealed class ProductRepository(AppDbContext context) : IProductRepository
 {
+    private IQueryable<Product> BaseQuery() =>
+        context.Products
+            .AsNoTracking()
+            .Include(p => p.Category)
+            .Include(p => p.Inventories)
+            .ThenInclude(i => i.Warehouse);
+
     public async Task<PagedResult<Product>> GetPagedAsync(
         string? query,
         string? category,
@@ -15,7 +22,7 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        var dbQuery = context.Products.AsNoTracking().AsQueryable();
+        var dbQuery = BaseQuery();
 
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -26,7 +33,7 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
         if (!string.IsNullOrWhiteSpace(category))
         {
             var normalized = category.Trim().ToLowerInvariant();
-            dbQuery = dbQuery.Where(p => p.Category.ToLower() == normalized);
+            dbQuery = dbQuery.Where(p => p.Category.Name.ToLower() == normalized);
         }
 
         var totalCount = await dbQuery.CountAsync(cancellationToken);
@@ -45,7 +52,7 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
         string? warehouse,
         CancellationToken cancellationToken = default)
     {
-        var dbQuery = context.Products.AsNoTracking().AsQueryable();
+        var dbQuery = BaseQuery();
 
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -56,32 +63,40 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
         if (!string.IsNullOrWhiteSpace(category))
         {
             var normalized = category.Trim().ToLowerInvariant();
-            dbQuery = dbQuery.Where(p => p.Category.ToLower() == normalized);
+            dbQuery = dbQuery.Where(p => p.Category.Name.ToLower() == normalized);
         }
 
         if (!string.IsNullOrWhiteSpace(warehouse))
         {
             var normalized = warehouse.Trim().ToLowerInvariant();
-            dbQuery = dbQuery.Where(p => p.Warehouse.ToLower() == normalized);
+            dbQuery = dbQuery.Where(p => p.Inventories.Any(i => i.Warehouse.Name.ToLower() == normalized));
         }
 
         return await dbQuery.OrderBy(p => p.Name).ToListAsync(cancellationToken);
     }
 
     public Task<List<Product>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        context.Products.AsNoTracking().ToListAsync(cancellationToken);
+        BaseQuery().ToListAsync(cancellationToken);
 
     public Task<List<Product>> GetAllOrderedByCodeAsync(CancellationToken cancellationToken = default) =>
-        context.Products.AsNoTracking().OrderBy(p => p.Code).ToListAsync(cancellationToken);
+        BaseQuery().OrderBy(p => p.Code).ToListAsync(cancellationToken);
 
     public Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        context.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        BaseQuery().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
     public Task<Product?> GetByIdTrackedAsync(Guid id, CancellationToken cancellationToken = default) =>
-        context.Products.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        context.Products
+            .Include(p => p.Category)
+            .Include(p => p.Inventories)
+            .ThenInclude(i => i.Warehouse)
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
     public Task<Product?> GetByCodeAsync(string code, CancellationToken cancellationToken = default) =>
-        context.Products.FirstOrDefaultAsync(p => p.Code == code, cancellationToken);
+        context.Products
+            .Include(p => p.Category)
+            .Include(p => p.Inventories)
+            .ThenInclude(i => i.Warehouse)
+            .FirstOrDefaultAsync(p => p.Code == code, cancellationToken);
 
     public Task<bool> ExistsByCodeAsync(string code, CancellationToken cancellationToken = default) =>
         context.Products.AnyAsync(p => p.Code == code, cancellationToken);
@@ -89,10 +104,14 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
     public Task<bool> ExistsByCodeExceptIdAsync(Guid id, string code, CancellationToken cancellationToken = default) =>
         context.Products.AnyAsync(p => p.Id != id && p.Code == code, cancellationToken);
 
-    public Task<Dictionary<Guid, Product>> GetByIdsAsync(
+    public async Task<Dictionary<Guid, Product>> GetByIdsAsync(
         IReadOnlyCollection<Guid> productIds,
         CancellationToken cancellationToken = default) =>
-        context.Products.Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, cancellationToken);
+        await context.Products
+            .Include(p => p.Inventories)
+            .ThenInclude(i => i.Warehouse)
+            .Where(p => productIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, cancellationToken);
 
     public Task<int> CountAsync(CancellationToken cancellationToken = default) =>
         context.Products.AsNoTracking().CountAsync(cancellationToken);
@@ -101,7 +120,14 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
         context.Products.AsNoTracking().CountAsync(p => p.Status == status, cancellationToken);
 
     public Task<decimal> SumInventoryValueAsync(CancellationToken cancellationToken = default) =>
-        context.Products.AsNoTracking().SumAsync(p => p.Price * p.Stock, cancellationToken);
+        context.Inventories.AsNoTracking().SumAsync(i => i.Product.Price * i.CurrentStock, cancellationToken);
+
+    public Task<List<string>> GetDistinctCategoriesAsync(CancellationToken cancellationToken = default) =>
+        context.Categories
+            .AsNoTracking()
+            .OrderBy(c => c.Name)
+            .Select(c => c.Name)
+            .ToListAsync(cancellationToken);
 
     public void Add(Product entity) => context.Products.Add(entity);
 

@@ -1,11 +1,14 @@
 using Api.Dtos;
+using Api.Filters;
 using Api.Mapping;
 using Application.Models;
 using Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
+[Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/sales")]
 public sealed class SalesController(ISaleService saleService) : ControllerBase
@@ -117,11 +120,38 @@ public sealed class SalesController(ISaleService saleService) : ControllerBase
         }
     }
 
+    [AllowAnonymous]
+    [ChatbotApiKey]
     [HttpPost("from-chatbot")]
     public async Task<ActionResult<CreateSaleFromChatbotResponse>> CreateSaleFromChatbot(
         [FromBody] CreateSaleFromChatbotRequest request,
         CancellationToken cancellationToken = default)
     {
+        // #region agent log
+        try
+        {
+            var dbg = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                sessionId = "cb4b87",
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                location = "SalesController.cs:CreateSaleFromChatbot",
+                message = "anonymous from-chatbot hit",
+                data = new
+                {
+                    productCode = request.ProductCode,
+                    quantity = request.Quantity,
+                    isAuthenticated = User.Identity?.IsAuthenticated ?? false,
+                    hasApiKey = Request.Headers.ContainsKey(ChatbotApiKeyAttribute.HeaderName),
+                },
+                hypothesisId = "H2",
+                runId = "post-fix",
+            });
+            System.IO.File.AppendAllText(
+                @"D:\CAMPUS\Programacion\LLM IA python\Codigo\Proyecto LLM\debug-cb4b87.log",
+                dbg + Environment.NewLine);
+        }
+        catch { }
+        // #endregion
         try
         {
             var result = await saleService.CreateSaleFromChatbotAsync(
@@ -129,6 +159,7 @@ public sealed class SalesController(ISaleService saleService) : ControllerBase
                 request.Quantity,
                 request.CustomerName,
                 request.CustomerEmail,
+                request.SessionId,
                 cancellationToken);
 
             return Ok(

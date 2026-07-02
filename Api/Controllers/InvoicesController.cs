@@ -3,10 +3,12 @@ using Api.Dtos;
 using Api.Mapping;
 using Application.Models;
 using Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
+[Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/invoices")]
 public sealed class InvoicesController(IInvoiceService invoiceService) : ControllerBase
@@ -45,6 +47,39 @@ public sealed class InvoicesController(IInvoiceService invoiceService) : Control
                 DraftInvoices = stats.DraftInvoices,
                 TotalBilledAmount = stats.TotalBilledAmount,
             });
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<InvoiceDto>> Create(
+        [FromBody] CreateInvoiceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var invoice = await invoiceService.CreateAsync(
+                new CreateInvoiceModel
+                {
+                    Client = request.Client,
+                    BillingNote = request.BillingNote,
+                    Date = request.Date,
+                    DueDate = request.DueDate,
+                    LineItems = request.LineItems
+                        .Select(li => new CreateInvoiceLineItemModel
+                        {
+                            Description = li.Description,
+                            Quantity = li.Quantity,
+                            UnitPrice = li.UnitPrice,
+                        })
+                        .ToList(),
+                },
+                cancellationToken);
+
+            return CreatedAtAction(nameof(GetById), new { id = invoice.Id }, invoice.ToInvoiceDto());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
     [HttpGet("{id:guid}")]

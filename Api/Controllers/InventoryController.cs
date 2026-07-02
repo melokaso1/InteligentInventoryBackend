@@ -3,10 +3,12 @@ using Api.Dtos;
 using Api.Mapping;
 using Application.Models;
 using Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
+[Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/inventory")]
 public sealed class InventoryController(IInventoryService inventoryService) : ControllerBase
@@ -34,6 +36,13 @@ public sealed class InventoryController(IInventoryService inventoryService) : Co
             cancellationToken);
 
         return Ok(result.ToPagedDto(p => p.ToInventoryItemDto()));
+    }
+
+    [HttpGet("categories")]
+    public async Task<ActionResult<IReadOnlyList<string>>> GetCategories(CancellationToken cancellationToken = default)
+    {
+        var categories = await inventoryService.GetCategoriesAsync(cancellationToken);
+        return Ok(categories);
     }
 
     [HttpGet("stats")]

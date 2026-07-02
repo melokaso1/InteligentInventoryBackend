@@ -6,8 +6,13 @@ using Domain.Enums;
 
 namespace Application.Services;
 
-public sealed class InvoiceService(IInvoiceRepository invoiceRepository) : IInvoiceService
+public sealed class InvoiceService(
+    IInvoiceRepository invoiceRepository,
+    ICustomerRepository customerRepository,
+    IUnitOfWork unitOfWork) : IInvoiceService
 {
+    private const decimal TaxRate = 0.08m;
+
     public async Task<PagedResult<Invoice>> GetInvoicesAsync(InvoiceQueryModel query, CancellationToken cancellationToken = default)
     {
         var page = Math.Max(1, query.Page);
@@ -58,6 +63,105 @@ public sealed class InvoiceService(IInvoiceRepository invoiceRepository) : IInvo
         return content.ToString();
     }
 
+    public async Task<Invoice> CreateAsync(CreateInvoiceModel request, CancellationToken cancellationToken = default)
+    {
+        var clientName = request.Client.Trim();
+        if (string.IsNullOrWhiteSpace(clientName))
+        {
+            throw new InvalidOperationException("El nombre del cliente es obligatorio.");
+        }
+
+        if (request.LineItems.Count == 0)
+        {
+            throw new InvalidOperationException("Debe enviar al menos una línea en la factura.");
+        }
+
+        foreach (var line in request.LineItems)
+        {
+            if (string.IsNullOrWhiteSpace(line.Description))
+            {
+                throw new InvalidOperationException("Cada línea debe tener una descripción.");
+            }
+
+            if (line.Quantity <= 0)
+            {
+                throw new InvalidOperationException("La cantidad de cada línea debe ser mayor a cero.");
+            }
+
+            if (line.UnitPrice < 0)
+            {
+                throw new InvalidOperationException("El precio unitario no puede ser negativo.");
+            }
+        }
+
+        if (!TryParseInvoiceDate(request.Date, out var issueDate))
+        {
+            throw new InvalidOperationException("Fecha de emisión inválida.");
+        }
+
+        if (!TryParseInvoiceDate(request.DueDate, out var dueDate))
+        {
+            throw new InvalidOperationException("Fecha de vencimiento inválida.");
+        }
+
+        var subtotal = decimal.Round(
+            request.LineItems.Sum(li => li.UnitPrice * li.Quantity),
+            2,
+            MidpointRounding.AwayFromZero);
+        var tax = decimal.Round(subtotal * TaxRate, 2, MidpointRounding.AwayFromZero);
+        var total = subtotal + tax;
+
+        if (subtotal < 0 || tax < 0 || total < 0)
+        {
+            throw new InvalidOperationException("Los totales de la factura no pueden ser negativos.");
+        }
+
+        var placeholderEmail = $"standalone-{Guid.NewGuid():N}@elplonsazo.local";
+        var customer = await customerRepository.GetOrCreateAsync(clientName, placeholderEmail, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var invoice = new Invoice
+        {
+            Id = Guid.NewGuid(),
+            InvoiceNumber = $"INV-{now:yyyyMMddHHmmssfff}",
+            CustomerId = customer.Id,
+            ClientName = clientName,
+            ClientInitials = BuildInitials(clientName),
+            BillingNote = request.BillingNote.Trim(),
+            Status = InvoiceStatus.Draft,
+            Subtotal = subtotal,
+            Tax = tax,
+            Total = total,
+            IssueDate = issueDate,
+            DueDate = dueDate,
+            LineItems = request.LineItems
+                .Select(li => new InvoiceLineItem
+                {
+                    Id = Guid.NewGuid(),
+                    Description = li.Description.Trim(),
+                    Quantity = li.Quantity,
+                    UnitPrice = li.UnitPrice,
+                })
+                .ToList(),
+        };
+
+        invoiceRepository.Add(invoice);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return invoice;
+    }
+
+    private static bool TryParseInvoiceDate(string value, out DateTime date)
+    {
+        if (DateTime.TryParse(value, out date))
+        {
+            date = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+            return true;
+        }
+
+        date = default;
+        return false;
+    }
+
     private static InvoiceStatus? ParseInvoiceStatus(string? status)
     {
         if (string.IsNullOrWhiteSpace(status))
@@ -83,4 +187,16 @@ public sealed class InvoiceService(IInvoiceRepository invoiceRepository) : IInvo
         InvoiceStatus.Draft => "draft",
         _ => "draft",
     };
+
+    private static string BuildInitials(string input)
+    {
+        var initials = input
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(part => part.Length > 0)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0]))
+            .ToArray();
+
+        return initials.Length == 0 ? "NN" : new string(initials);
+    }
 }

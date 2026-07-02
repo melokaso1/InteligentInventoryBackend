@@ -4,6 +4,7 @@ public sealed class ChatMessageRequest
 {
     public string SessionId { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
+    public string? StateJson { get; set; }
 }
 
 public sealed class ChatOperationSummary
@@ -23,7 +24,15 @@ public sealed class ChatMessageResult
 {
     public string Response { get; set; } = string.Empty;
     public string State { get; set; } = "idle";
+    public string? StateJson { get; set; }
     public string? InvoiceNumber { get; set; }
     public IReadOnlyList<string>? Chips { get; set; }
     public ChatOperationSummary? OperationSummary { get; set; }
+}
+
+public sealed class ChatHistoryMessage
+{
+    public string SenderType { get; set; } = string.Empty;
+    public string MessageText { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
 }

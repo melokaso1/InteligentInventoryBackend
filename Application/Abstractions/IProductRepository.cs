@@ -19,6 +19,7 @@ public interface IProductRepository
     Task<int> CountAsync(CancellationToken cancellationToken = default);
     Task<int> CountByStatusAsync(ProductStatus status, CancellationToken cancellationToken = default);
     Task<decimal> SumInventoryValueAsync(CancellationToken cancellationToken = default);
+    Task<List<string>> GetDistinctCategoriesAsync(CancellationToken cancellationToken = default);
     void Add(Product entity);
     void Remove(Product entity);
 }

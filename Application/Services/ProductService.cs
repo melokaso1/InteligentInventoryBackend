@@ -1,11 +1,18 @@
 using Application.Abstractions;
 using Application.Models;
+using Domain.Constants;
 using Domain.Entities;
 using Domain.Enums;
+using Domain.Extensions;
 
 namespace Application.Services;
 
-public sealed class ProductService(IProductRepository productRepository, IUnitOfWork unitOfWork) : IProductService
+public sealed class ProductService(
+    IProductRepository productRepository,
+    ICategoryRepository categoryRepository,
+    IInventoryRepository inventoryRepository,
+    IWarehouseRepository warehouseRepository,
+    IUnitOfWork unitOfWork) : IProductService
 {
     public Task<PagedResult<Product>> GetProductsAsync(ProductQueryModel query, CancellationToken cancellationToken = default)
     {
@@ -26,6 +33,9 @@ public sealed class ProductService(IProductRepository productRepository, IUnitOf
             TotalInventoryValue = await productRepository.SumInventoryValueAsync(cancellationToken),
         };
     }
+
+    public Task<List<string>> GetCategoriesAsync(CancellationToken cancellationToken = default) =>
+        productRepository.GetDistinctCategoriesAsync(cancellationToken);
 
     public Task<List<Product>> GetProductsForExportAsync(CancellationToken cancellationToken = default) =>
         productRepository.GetAllOrderedByCodeAsync(cancellationToken);
@@ -48,23 +58,37 @@ public sealed class ProductService(IProductRepository productRepository, IUnitOf
             throw new InvalidOperationException("Ya existe un producto con ese código.");
         }
 
+        var category = await categoryRepository.GetOrCreateAsync(request.Category, cancellationToken);
         var status = ResolveStatus(request.Status, request.Stock);
         var now = DateTime.UtcNow;
+        var warehouse = await ResolveWarehouseAsync(request.Warehouse, cancellationToken);
+
         var entity = new Product
         {
             Id = Guid.NewGuid(),
             Code = normalizedCode,
             Name = request.Name.Trim(),
-            Category = request.Category.Trim(),
+            CategoryId = category.Id,
+            Category = category,
             Price = decimal.Round(request.Price, 2, MidpointRounding.AwayFromZero),
-            Stock = request.Stock,
-            MaxStock = request.MaxStock,
             Status = status,
             Icon = request.Icon.Trim(),
             Description = request.Description.Trim(),
-            Warehouse = request.Warehouse.Trim(),
             CreatedAt = now,
             UpdatedAt = now,
+            Inventories =
+            [
+                new Inventory
+                {
+                    Id = Guid.NewGuid(),
+                    WarehouseId = warehouse.Id,
+                    Warehouse = warehouse,
+                    CurrentStock = request.Stock,
+                    MinStock = Math.Max(1, request.MaxStock / 4),
+                    MaxStock = request.MaxStock,
+                    UpdatedAt = now,
+                },
+            ],
         };
 
         productRepository.Add(entity);
@@ -85,18 +109,43 @@ public sealed class ProductService(IProductRepository productRepository, IUnitOf
             throw new InvalidOperationException("Ya existe otro producto con ese código.");
         }
 
+        var category = await categoryRepository.GetOrCreateAsync(request.Category, cancellationToken);
         var status = ResolveStatus(request.Status, request.Stock);
+        var warehouse = await ResolveWarehouseAsync(request.Warehouse, cancellationToken);
+        var inventory = entity.Inventories.FirstOrDefault(i => i.WarehouseId == warehouse.Id)
+            ?? entity.GetDefaultInventory();
+
+        if (inventory is null)
+        {
+            inventory = new Inventory
+            {
+                Id = Guid.NewGuid(),
+                ProductId = entity.Id,
+                WarehouseId = warehouse.Id,
+                Warehouse = warehouse,
+            };
+            inventoryRepository.Add(inventory);
+            entity.Inventories.Add(inventory);
+        }
+        else if (inventory.WarehouseId != warehouse.Id)
+        {
+            inventory.WarehouseId = warehouse.Id;
+            inventory.Warehouse = warehouse;
+        }
+
+        inventory.CurrentStock = request.Stock;
+        inventory.MaxStock = request.MaxStock;
+        inventory.MinStock = Math.Max(1, request.MaxStock / 4);
+        inventory.UpdatedAt = DateTime.UtcNow;
 
         entity.Code = normalizedCode;
         entity.Name = request.Name.Trim();
-        entity.Category = request.Category.Trim();
+        entity.CategoryId = category.Id;
+        entity.Category = category;
         entity.Price = decimal.Round(request.Price, 2, MidpointRounding.AwayFromZero);
-        entity.Stock = request.Stock;
-        entity.MaxStock = request.MaxStock;
         entity.Status = status;
         entity.Icon = request.Icon.Trim();
         entity.Description = request.Description.Trim();
-        entity.Warehouse = request.Warehouse.Trim();
         entity.UpdatedAt = DateTime.UtcNow;
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -127,21 +176,35 @@ public sealed class ProductService(IProductRepository productRepository, IUnitOf
         }
 
         var now = DateTime.UtcNow;
+        var sourceInventory = source.GetDefaultInventory();
+        var defaultWarehouse = await warehouseRepository.GetDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("No hay almacén configurado.");
+
         var duplicate = new Product
         {
             Id = Guid.NewGuid(),
             Code = duplicateCode,
             Name = $"{source.Name} (Copia)",
+            CategoryId = source.CategoryId,
             Category = source.Category,
             Price = source.Price,
-            Stock = source.Stock,
-            MaxStock = source.MaxStock,
-            Status = source.Stock <= 0 ? ProductStatus.OutOfStock : source.Status,
+            Status = source.GetStock() <= 0 ? ProductStatus.OutOfStock : source.Status,
             Icon = source.Icon,
             Description = source.Description,
-            Warehouse = source.Warehouse,
             CreatedAt = now,
             UpdatedAt = now,
+            Inventories =
+            [
+                new Inventory
+                {
+                    Id = Guid.NewGuid(),
+                    WarehouseId = sourceInventory?.WarehouseId ?? defaultWarehouse.Id,
+                    CurrentStock = source.GetStock(),
+                    MinStock = sourceInventory?.MinStock ?? 0,
+                    MaxStock = source.GetMaxStock(),
+                    UpdatedAt = now,
+                },
+            ],
         };
 
         productRepository.Add(duplicate);
@@ -163,11 +226,24 @@ public sealed class ProductService(IProductRepository productRepository, IUnitOf
         entity.UpdatedAt = DateTime.UtcNow;
         if (parsedStatus == ProductStatus.OutOfStock)
         {
-            entity.Stock = 0;
+            var inventory = entity.GetDefaultInventory();
+            if (inventory is not null)
+            {
+                inventory.CurrentStock = 0;
+                inventory.UpdatedAt = DateTime.UtcNow;
+            }
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return entity;
+    }
+
+    private async Task<Warehouse> ResolveWarehouseAsync(string? warehouseName, CancellationToken cancellationToken)
+    {
+        var name = string.IsNullOrWhiteSpace(warehouseName) ? WarehouseNames.Default : warehouseName.Trim();
+        return await warehouseRepository.GetByNameAsync(name, cancellationToken)
+            ?? await warehouseRepository.GetDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("No hay almacén configurado.");
     }
 
     private static void ValidateNumericValues(decimal price, int stock, int maxStock)

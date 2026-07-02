@@ -36,3 +36,10 @@ public enum InvoiceStatus
     Overdue,
     Draft
 }
+
+public enum ChatSenderType
+{
+    User,
+    Bot,
+    System
+}

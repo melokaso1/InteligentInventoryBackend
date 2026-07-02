@@ -2,11 +2,16 @@ using Application.Abstractions;
 using Application.Models;
 using Domain.Entities;
 using Domain.Enums;
+using Domain.Extensions;
 
 namespace Application.Services;
 
 public sealed class SaleService(
     IProductRepository productRepository,
+    IInventoryRepository inventoryRepository,
+    IWarehouseRepository warehouseRepository,
+    ICustomerRepository customerRepository,
+    IChatSessionRepository chatSessionRepository,
     ISaleRepository saleRepository,
     IInvoiceRepository invoiceRepository,
     IInventoryMovementRepository movementRepository,
@@ -66,6 +71,9 @@ public sealed class SaleService(
             throw new InvalidOperationException("Uno o más productos no existen.");
         }
 
+        var defaultWarehouse = await warehouseRepository.GetDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("No hay almacén configurado.");
+
         foreach (var line in request.LineItems)
         {
             if (line.Quantity <= 0)
@@ -74,11 +82,16 @@ public sealed class SaleService(
             }
 
             var product = products[line.ProductId];
-            if (product.Stock < line.Quantity)
+            if (product.GetStock() < line.Quantity)
             {
                 throw new InvalidOperationException($"Stock insuficiente para el producto {product.Code}.");
             }
         }
+
+        var customer = await customerRepository.GetOrCreateAsync(
+            request.CustomerName,
+            request.CustomerEmail,
+            cancellationToken);
 
         Sale? created = null;
         await unitOfWork.ExecuteInTransactionAsync(
@@ -91,8 +104,10 @@ public sealed class SaleService(
                 {
                     Id = Guid.NewGuid(),
                     OrderNumber = orderNumber,
-                    CustomerName = request.CustomerName.Trim(),
-                    CustomerEmail = request.CustomerEmail.Trim(),
+                    CustomerId = customer.Id,
+                    Customer = customer,
+                    CustomerName = customer.FullName,
+                    CustomerEmail = customer.Email,
                     Origin = origin,
                     Status = status,
                     CreatedAt = now,
@@ -102,12 +117,15 @@ public sealed class SaleService(
                 foreach (var line in request.LineItems)
                 {
                     var product = products[line.ProductId];
-                    product.Stock -= line.Quantity;
-                    product.UpdatedAt = now;
-                    if (product.Stock <= 0)
+                    var inventory = await GetOrCreateInventoryAsync(product, defaultWarehouse.Id, ct);
+                    inventory.CurrentStock -= line.Quantity;
+                    inventory.UpdatedAt = now;
+                    if (inventory.CurrentStock <= 0)
                     {
                         product.Status = ProductStatus.OutOfStock;
                     }
+
+                    product.UpdatedAt = now;
 
                     sale.LineItems.Add(
                         new SaleLineItem
@@ -125,6 +143,7 @@ public sealed class SaleService(
                         {
                             Id = Guid.NewGuid(),
                             ProductId = product.Id,
+                            InventoryId = inventory.Id,
                             Type = StockMovementType.Outbound,
                             QuantityChange = -line.Quantity,
                             Reason = "Venta manual",
@@ -163,6 +182,7 @@ public sealed class SaleService(
             Id = Guid.NewGuid(),
             InvoiceNumber = $"INV-{now:yyyyMMddHHmmssfff}",
             SaleId = sale.Id,
+            CustomerId = sale.CustomerId,
             ClientName = sale.CustomerName,
             ClientInitials = BuildInitials(sale.CustomerName),
             BillingNote = $"Factura emitida para el pedido {sale.OrderNumber}.",
@@ -176,6 +196,7 @@ public sealed class SaleService(
                 .Select(li => new InvoiceLineItem
                 {
                     Id = Guid.NewGuid(),
+                    ProductId = li.ProductId,
                     Description = li.Description,
                     Quantity = li.Quantity,
                     UnitPrice = li.UnitPrice,
@@ -194,6 +215,7 @@ public sealed class SaleService(
         int quantity,
         string customerName,
         string customerEmail,
+        string? sessionId = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(productCode))
@@ -207,7 +229,6 @@ public sealed class SaleService(
         }
 
         var product = await productRepository.GetByCodeAsync(productCode.Trim(), cancellationToken);
-
         if (product is null)
         {
             throw new InvalidOperationException("Producto no encontrado.");
@@ -218,9 +239,19 @@ public sealed class SaleService(
             throw new InvalidOperationException("El producto no está disponible para venta.");
         }
 
-        if (product.Stock < quantity)
+        if (product.GetStock() < quantity)
         {
             throw new InvalidOperationException("Stock insuficiente para completar la venta.");
+        }
+
+        var defaultWarehouse = await warehouseRepository.GetDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("No hay almacén configurado.");
+
+        var customer = await customerRepository.GetOrCreateAsync(customerName, customerEmail, cancellationToken);
+        ChatSession? chatSession = null;
+        if (!string.IsNullOrWhiteSpace(sessionId))
+        {
+            chatSession = await chatSessionRepository.GetByTokenTrackedAsync(sessionId.Trim(), cancellationToken);
         }
 
         Sale? sale = null;
@@ -235,18 +266,24 @@ public sealed class SaleService(
                 var orderNumber = $"ORD-{now:yyyyMMddHHmmssfff}";
                 var invoiceNumber = $"INV-{now:yyyyMMddHHmmssfff}";
 
-                product.Stock -= quantity;
+                var inventory = await GetOrCreateInventoryAsync(product, defaultWarehouse.Id, ct);
+                inventory.CurrentStock -= quantity;
+                inventory.UpdatedAt = now;
+                product.Status = inventory.CurrentStock <= 0 ? ProductStatus.OutOfStock : ProductStatus.Active;
                 product.UpdatedAt = now;
-                product.Status = product.Stock <= 0 ? ProductStatus.OutOfStock : ProductStatus.Active;
 
                 sale = new Sale
                 {
                     Id = Guid.NewGuid(),
                     OrderNumber = orderNumber,
-                    CustomerName = customerName.Trim(),
-                    CustomerEmail = customerEmail.Trim(),
+                    CustomerId = customer.Id,
+                    Customer = customer,
+                    CustomerName = customer.FullName,
+                    CustomerEmail = customer.Email,
                     Origin = SaleOrigin.Chatbot,
                     Status = SaleStatus.Invoiced,
+                    ChatSessionId = chatSession?.Id,
+                    ChatSession = chatSession,
                     Subtotal = subtotal,
                     Tax = tax,
                     Total = total,
@@ -269,6 +306,7 @@ public sealed class SaleService(
                 {
                     Id = Guid.NewGuid(),
                     ProductId = product.Id,
+                    InventoryId = inventory.Id,
                     Product = product,
                     Type = StockMovementType.Outbound,
                     QuantityChange = -quantity,
@@ -282,6 +320,7 @@ public sealed class SaleService(
                     Id = Guid.NewGuid(),
                     InvoiceNumber = invoiceNumber,
                     SaleId = sale.Id,
+                    CustomerId = customer.Id,
                     ClientName = sale.CustomerName,
                     ClientInitials = BuildInitials(sale.CustomerName),
                     BillingNote = $"Factura generada automáticamente para pedido {orderNumber}.",
@@ -296,6 +335,7 @@ public sealed class SaleService(
                         new InvoiceLineItem
                         {
                             Id = Guid.NewGuid(),
+                            ProductId = product.Id,
                             Description = $"{product.Name} ({product.Code})",
                             Quantity = quantity,
                             UnitPrice = product.Price,
@@ -306,13 +346,49 @@ public sealed class SaleService(
                 movementRepository.Add(movement);
                 saleRepository.Add(sale);
                 invoiceRepository.Add(invoice);
-
                 await unitOfWork.SaveChangesAsync(ct);
             },
             cancellationToken);
 
         sale!.Invoice = invoice;
         return new ChatbotSaleResult { Sale = sale, InvoiceNumber = invoice!.InvoiceNumber };
+    }
+
+    private async Task<Inventory> GetOrCreateInventoryAsync(
+        Product product,
+        Guid warehouseId,
+        CancellationToken cancellationToken)
+    {
+        var inventory = product.Inventories.FirstOrDefault(i => i.WarehouseId == warehouseId);
+        if (inventory is not null)
+        {
+            return inventory;
+        }
+
+        inventory = await inventoryRepository.GetByProductAndWarehouseTrackedAsync(
+            product.Id,
+            warehouseId,
+            cancellationToken);
+
+        if (inventory is not null)
+        {
+            product.Inventories.Add(inventory);
+            return inventory;
+        }
+
+        inventory = new Inventory
+        {
+            Id = Guid.NewGuid(),
+            ProductId = product.Id,
+            WarehouseId = warehouseId,
+            CurrentStock = product.GetStock(),
+            MinStock = 0,
+            MaxStock = product.GetMaxStock(),
+            UpdatedAt = DateTime.UtcNow,
+        };
+        inventoryRepository.Add(inventory);
+        product.Inventories.Add(inventory);
+        return inventory;
     }
 
     private static SaleOrigin? ParseSaleOrigin(string? origin)

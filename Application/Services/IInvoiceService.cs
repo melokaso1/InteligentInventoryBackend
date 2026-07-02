@@ -9,4 +9,5 @@ public interface IInvoiceService
     Task<InvoiceStatsModel> GetStatsAsync(CancellationToken cancellationToken = default);
     Task<Invoice?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<string> BuildPdfContentAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Invoice> CreateAsync(CreateInvoiceModel request, CancellationToken cancellationToken = default);
 }

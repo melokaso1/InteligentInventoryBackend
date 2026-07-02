@@ -8,6 +8,8 @@ public class Invoice
     public string InvoiceNumber { get; set; } = string.Empty;
     public Guid? SaleId { get; set; }
     public Sale? Sale { get; set; }
+    public Guid? CustomerId { get; set; }
+    public Customer? Customer { get; set; }
     public string ClientName { get; set; } = string.Empty;
     public string ClientInitials { get; set; } = string.Empty;
     public string BillingNote { get; set; } = string.Empty;

@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IChatService, ChatService>();
+        services.AddScoped<IAuthService, AuthService>();
         return services;
     }
 }

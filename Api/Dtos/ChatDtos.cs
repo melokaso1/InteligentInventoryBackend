@@ -27,3 +27,10 @@ public sealed class ChatMessageResponseDto
     public IReadOnlyList<string>? Chips { get; set; }
     public ChatOperationSummaryDto? OperationSummary { get; set; }
 }
+
+public sealed class ChatHistoryMessageDto
+{
+    public string SenderType { get; set; } = string.Empty;
+    public string MessageText { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
+}

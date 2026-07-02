@@ -10,5 +10,5 @@ public interface ISaleService
     Task<Sale?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Sale> CreateManualSaleAsync(CreateSaleModel request, CancellationToken cancellationToken = default);
     Task<Invoice> CreateInvoiceAsync(Guid saleId, CancellationToken cancellationToken = default);
-    Task<ChatbotSaleResult> CreateSaleFromChatbotAsync(string productCode, int quantity, string customerName, string customerEmail, CancellationToken cancellationToken = default);
+    Task<ChatbotSaleResult> CreateSaleFromChatbotAsync(string productCode, int quantity, string customerName, string customerEmail, string? sessionId = null, CancellationToken cancellationToken = default);
 }

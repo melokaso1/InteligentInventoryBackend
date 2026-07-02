@@ -58,6 +58,7 @@ public sealed class CreateSaleFromChatbotRequest
     public int Quantity { get; set; }
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerEmail { get; set; } = string.Empty;
+    public string? SessionId { get; set; }
 }
 
 public sealed class CreateSaleFromChatbotResponse
