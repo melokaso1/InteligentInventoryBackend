@@ -79,7 +79,7 @@ public sealed class InventoryRepository(AppDbContext context) : IInventoryReposi
     public Task<int> CountAsync(CancellationToken cancellationToken = default) =>
         context.Inventories.AsNoTracking().CountAsync(cancellationToken);
 
-    public Task<int> SumTotalUnitsAsync(CancellationToken cancellationToken = default) =>
+    public Task<decimal> SumTotalUnitsAsync(CancellationToken cancellationToken = default) =>
         context.Inventories.AsNoTracking().SumAsync(i => i.CurrentStock, cancellationToken);
 
     public Task<decimal> SumInventoryValueAsync(CancellationToken cancellationToken = default) =>

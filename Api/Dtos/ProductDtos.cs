@@ -7,11 +7,14 @@ public sealed class ProductDto
     public string Name { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public decimal Price { get; set; }
-    public int Stock { get; set; }
-    public int MaxStock { get; set; }
+    public string SaleUnit { get; set; } = "unit";
+    public bool AllowsFractional { get; set; }
+    public decimal Stock { get; set; }
+    public decimal MaxStock { get; set; }
     public string Status { get; set; } = "active";
     public string Icon { get; set; } = "inventory_2";
     public string Description { get; set; } = string.Empty;
+    public string? UnitContentLabel { get; set; }
 }
 
 public sealed class CreateProductRequest

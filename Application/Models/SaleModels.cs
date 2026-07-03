@@ -22,7 +22,15 @@ public sealed class CreateSaleModel
 public sealed class CreateSaleLineItemModel
 {
     public Guid ProductId { get; init; }
-    public int Quantity { get; init; }
+    public decimal Quantity { get; init; }
+    public string? MeasureUnit { get; init; }
+}
+
+public sealed class ChatbotSaleLineItemModel
+{
+    public required string ProductCode { get; init; }
+    public decimal Quantity { get; init; }
+    public string? MeasureUnit { get; init; }
 }
 
 public sealed class SaleMetricsModel

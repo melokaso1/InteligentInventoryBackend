@@ -21,12 +21,12 @@ public sealed class SaleRepository(AppDbContext context) : ISaleRepository
 
         if (from.HasValue)
         {
-            query = query.Where(s => s.CreatedAt >= from.Value);
+            query = query.Where(s => s.CreatedAt >= ToUtc(from.Value));
         }
 
         if (to.HasValue)
         {
-            query = query.Where(s => s.CreatedAt <= to.Value);
+            query = query.Where(s => s.CreatedAt <= ToUtc(to.Value));
         }
 
         if (origin.HasValue)
@@ -93,4 +93,11 @@ public sealed class SaleRepository(AppDbContext context) : ISaleRepository
             .ThenInclude(li => li.Product)
             .Include(s => s.Invoice)
             .AsQueryable();
+
+    private static DateTime ToUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+    };
 }

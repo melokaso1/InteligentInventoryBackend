@@ -16,12 +16,29 @@ public sealed class InvoiceDto
     public decimal Total { get; set; }
     public string InvoiceNumber { get; set; } = string.Empty;
     public Guid? SaleId { get; set; }
+    public string Source { get; set; } = "manual";
+}
+
+public sealed class CreateManualInvoiceRequest
+{
+    public string CustomerName { get; set; } = string.Empty;
+    public string? CustomerEmail { get; set; }
+    public string? BillingNote { get; set; }
+    public List<CreateManualInvoiceLineItemRequest> LineItems { get; set; } = [];
+}
+
+public sealed class CreateManualInvoiceLineItemRequest
+{
+    public Guid? ProductId { get; set; }
+    public string? ProductCode { get; set; }
+    public decimal Quantity { get; set; }
 }
 
 public sealed class InvoiceLineItemDto
 {
     public string Description { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
+    public string MeasureUnit { get; set; } = "unit";
     public decimal UnitPrice { get; set; }
 }
 
@@ -47,6 +64,11 @@ public sealed class CreateInvoiceRequest
 public sealed class CreateInvoiceLineItemRequest
 {
     public string Description { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+}
+
+public sealed class PayInvoiceRequest
+{
+    public string PaymentMethod { get; set; } = string.Empty;
 }

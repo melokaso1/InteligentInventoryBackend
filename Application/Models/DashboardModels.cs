@@ -17,8 +17,8 @@ public sealed class LowStockItemModel
     public Guid Id { get; init; }
     public required string Name { get; init; }
     public required string Sku { get; init; }
-    public int CurrentStock { get; init; }
-    public int ReorderLevel { get; init; }
+    public decimal CurrentStock { get; init; }
+    public decimal ReorderLevel { get; init; }
     public required string Status { get; init; }
 }
 

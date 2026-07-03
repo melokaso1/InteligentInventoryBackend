@@ -2,7 +2,7 @@ namespace Application.Common;
 
 public static class StockLevelHelper
 {
-    public static (string StockLevel, decimal StockPercent) GetStockLevel(int stock, int maxStock)
+    public static (string StockLevel, decimal StockPercent) GetStockLevel(decimal stock, decimal maxStock)
     {
         if (maxStock <= 0)
         {
@@ -28,7 +28,7 @@ public static class StockLevelHelper
         return ("high", percent);
     }
 
-    public static string GetLowStockStatus(int stock, int maxStock)
+    public static string GetLowStockStatus(decimal stock, decimal maxStock)
     {
         if (stock <= 0)
         {

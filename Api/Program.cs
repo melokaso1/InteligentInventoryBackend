@@ -1,10 +1,15 @@
+using Api.Middleware;
+using Api.Startup;
 using Application;
 using Infrastructure;
 using Infrastructure.Persistence.Seed;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+
+DotEnvLoader.Load(Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", ".env")));
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +18,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
     });
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
@@ -56,12 +62,29 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseGlobalExceptionHandler();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-await DatabaseSeeder.SeedAsync(app.Services);
+if (app.Environment.IsDevelopment())
+{
+    DevServerStartupGuard.EnsureHttpPortsAvailable(app.Configuration, app.Environment);
+}
+
+try
+{
+    await DatabaseSeeder.SeedAsync(app.Services);
+}
+catch (Exception ex) when (ex is not OperationCanceledException)
+{
+    var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+    startupLogger.LogCritical(
+        ex,
+        "Falló la migración o el seed de la base de datos. Verifica PostgreSQL (docker compose up -d) y la cadena en appsettings.Development.json.");
+    throw;
+}
 
 app.Run();
 

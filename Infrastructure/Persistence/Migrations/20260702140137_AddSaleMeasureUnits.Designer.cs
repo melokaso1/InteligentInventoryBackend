@@ -13,8 +13,8 @@ using Pgvector;
 namespace Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260702063253_AddProductEmbeddings")]
-    partial class AddProductEmbeddings
+    [Migration("20260702140137_AddSaleMeasureUnits")]
+    partial class AddSaleMeasureUnits
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

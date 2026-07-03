@@ -29,6 +29,26 @@ public sealed class CreateInvoiceModel
 public sealed class CreateInvoiceLineItemModel
 {
     public required string Description { get; init; }
-    public int Quantity { get; init; }
+    public decimal Quantity { get; init; }
     public decimal UnitPrice { get; init; }
+}
+
+public sealed class PayInvoiceModel
+{
+    public required string PaymentMethod { get; init; }
+}
+
+public sealed class CreateManualInvoiceModel
+{
+    public string CustomerName { get; init; } = string.Empty;
+    public string? CustomerEmail { get; init; }
+    public string? BillingNote { get; init; }
+    public required List<CreateManualInvoiceLineItemModel> LineItems { get; init; }
+}
+
+public sealed class CreateManualInvoiceLineItemModel
+{
+    public Guid? ProductId { get; init; }
+    public string? ProductCode { get; init; }
+    public decimal Quantity { get; init; }
 }

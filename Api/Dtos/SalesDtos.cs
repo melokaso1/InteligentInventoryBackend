@@ -23,8 +23,9 @@ public sealed class SaleLineItemDto
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Icon { get; set; } = "inventory_2";
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public string MeasureUnit { get; set; } = "unit";
 }
 
 public sealed class SaleMetricsDto
@@ -49,13 +50,23 @@ public sealed class CreateSaleRequest
 public sealed class CreateSaleLineItemRequest
 {
     public Guid ProductId { get; set; }
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
+    public string? MeasureUnit { get; set; }
+}
+
+public sealed class CreateSaleFromChatbotLineItemRequest
+{
+    public string ProductCode { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public string? MeasureUnit { get; set; }
 }
 
 public sealed class CreateSaleFromChatbotRequest
 {
     public string ProductCode { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
+    public string? MeasureUnit { get; set; }
+    public List<CreateSaleFromChatbotLineItemRequest>? LineItems { get; set; }
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerEmail { get; set; } = string.Empty;
     public string? SessionId { get; set; }

@@ -10,7 +10,7 @@ public interface IInventoryRepository
     Task<List<Inventory>> GetAllWithDetailsAsync(CancellationToken cancellationToken = default);
     Task<List<Inventory>> GetFilteredAsync(string? query, string? category, string? warehouse, CancellationToken cancellationToken = default);
     Task<int> CountAsync(CancellationToken cancellationToken = default);
-    Task<int> SumTotalUnitsAsync(CancellationToken cancellationToken = default);
+    Task<decimal> SumTotalUnitsAsync(CancellationToken cancellationToken = default);
     Task<decimal> SumInventoryValueAsync(CancellationToken cancellationToken = default);
     void Add(Inventory entity);
 }

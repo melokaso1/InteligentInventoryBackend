@@ -1,10 +1,69 @@
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Infrastructure.Persistence;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public override int SaveChanges()
+    {
+        NormalizeDateTimes();
+        return base.SaveChanges();
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        NormalizeDateTimes();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        NormalizeDateTimes();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        NormalizeDateTimes();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void NormalizeDateTimes()
+    {
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+            {
+                continue;
+            }
+
+            foreach (PropertyEntry property in entry.Properties)
+            {
+                if (property.Metadata.ClrType == typeof(DateTime)
+                    && property.CurrentValue is DateTime dateTime)
+                {
+                    property.CurrentValue = ToUtc(dateTime);
+                }
+                else if (property.Metadata.ClrType == typeof(DateTime?)
+                    && property.CurrentValue is DateTime nullableDateTime)
+                {
+                    property.CurrentValue = ToUtc(nullableDateTime);
+                }
+            }
+        }
+    }
+
+    private static DateTime ToUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+    };
+
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Inventory> Inventories => Set<Inventory>();
@@ -115,6 +174,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(p => p.Code).IsUnique();
             entity.HasIndex(p => p.CategoryId);
             entity.Property(p => p.Price).HasPrecision(18, 2);
+            entity.Property(p => p.SaleUnit).HasConversion<int>();
+            entity.Property(p => p.UnitContentAmount).HasPrecision(18, 4);
+            entity.Property(p => p.UnitContentMeasure).HasConversion<int>();
             entity.HasOne(p => p.Category)
                 .WithMany(c => c.Products)
                 .HasForeignKey(p => p.CategoryId)
@@ -127,6 +189,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<Inventory>(entity =>
         {
             entity.HasIndex(i => new { i.ProductId, i.WarehouseId }).IsUnique();
+            entity.Property(i => i.CurrentStock).HasPrecision(18, 4);
+            entity.Property(i => i.MinStock).HasPrecision(18, 4);
+            entity.Property(i => i.MaxStock).HasPrecision(18, 4);
             entity.HasOne(i => i.Product)
                 .WithMany(p => p.Inventories)
                 .HasForeignKey(i => i.ProductId)
@@ -143,6 +208,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<InventoryMovement>(entity =>
         {
             entity.Property(m => m.Type).HasConversion<int>();
+            entity.Property(m => m.QuantityChange).HasPrecision(18, 4);
 
             entity.HasOne(m => m.Product)
                 .WithMany(p => p.Movements)
@@ -183,6 +249,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasForeignKey(s => s.CreatedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
+
+        modelBuilder.Entity<SaleLineItem>(entity =>
+        {
+            entity.Property(li => li.Quantity).HasPrecision(18, 4);
+            entity.Property(li => li.UnitPrice).HasPrecision(18, 2);
+            entity.Property(li => li.MeasureUnit).HasConversion<int>();
+        });
     }
 
     private static void ConfigureInvoice(ModelBuilder modelBuilder)
@@ -208,7 +281,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<InvoiceLineItem>(entity =>
         {
+            entity.Property(li => li.Quantity).HasPrecision(18, 4);
             entity.Property(li => li.UnitPrice).HasPrecision(18, 2);
+            entity.Property(li => li.MeasureUnit).HasConversion<int>();
             entity.HasOne(li => li.Product)
                 .WithMany()
                 .HasForeignKey(li => li.ProductId)

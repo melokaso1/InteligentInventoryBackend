@@ -17,8 +17,8 @@ public sealed class LowStockItemDto
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Sku { get; set; } = string.Empty;
-    public int CurrentStock { get; set; }
-    public int ReorderLevel { get; set; }
+    public decimal CurrentStock { get; set; }
+    public decimal ReorderLevel { get; set; }
     public string Status { get; set; } = "low_stock";
 }
 

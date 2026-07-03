@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using Api.Dtos;
 using Api.Mapping;
@@ -82,6 +83,38 @@ public sealed class InvoicesController(IInvoiceService invoiceService) : Control
         }
     }
 
+    [HttpPost("manual")]
+    public async Task<ActionResult<InvoiceDto>> CreateManual(
+        [FromBody] CreateManualInvoiceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var invoice = await invoiceService.CreateManualAsync(
+                new CreateManualInvoiceModel
+                {
+                    CustomerName = request.CustomerName,
+                    CustomerEmail = request.CustomerEmail,
+                    BillingNote = request.BillingNote,
+                    LineItems = request.LineItems
+                        .Select(li => new CreateManualInvoiceLineItemModel
+                        {
+                            ProductId = li.ProductId,
+                            ProductCode = li.ProductCode,
+                            Quantity = li.Quantity,
+                        })
+                        .ToList(),
+                },
+                cancellationToken);
+
+            return CreatedAtAction(nameof(GetById), new { id = invoice.Id }, invoice.ToInvoiceDto());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<InvoiceDto>> GetById(Guid id, CancellationToken cancellationToken = default)
     {
@@ -106,11 +139,53 @@ public sealed class InvoicesController(IInvoiceService invoiceService) : Control
             }
 
             var content = await invoiceService.BuildPdfContentAsync(id, cancellationToken);
-            return File(Encoding.UTF8.GetBytes(content), "application/pdf", $"{invoice.InvoiceNumber}.pdf");
+            return File(Encoding.UTF8.GetBytes(content), "text/plain; charset=utf-8", $"factura-{id}.txt");
         }
         catch (KeyNotFoundException ex)
         {
             return NotFound(ex.Message);
         }
+    }
+
+    [HttpPost("{id:guid}/pay")]
+    public async Task<ActionResult<InvoiceDto>> PayInvoice(
+        Guid id,
+        [FromBody] PayInvoiceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var invoice = await invoiceService.PayInvoiceAsync(
+                id,
+                new PayInvoiceModel { PaymentMethod = request.PaymentMethod },
+                userId,
+                isAdmin: true,
+                cancellationToken);
+
+            return Ok(invoice.ToInvoiceDto());
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    private bool TryGetUserId(out Guid userId)
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out userId);
     }
 }

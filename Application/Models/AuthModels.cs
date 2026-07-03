@@ -13,6 +13,13 @@ public sealed class LoginModel
     public string Password { get; set; } = string.Empty;
 }
 
+public sealed class ChangePasswordModel
+{
+    public Guid UserId { get; set; }
+    public string CurrentPassword { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
+}
+
 public sealed class AuthUserModel
 {
     public Guid Id { get; set; }

@@ -9,6 +9,10 @@ namespace Application.Services;
 public sealed class InvoiceService(
     IInvoiceRepository invoiceRepository,
     ICustomerRepository customerRepository,
+    IProductRepository productRepository,
+    IUserRepository userRepository,
+    IInventoryMovementRepository movementRepository,
+    IInventoryStockService inventoryStockService,
     IUnitOfWork unitOfWork) : IInvoiceService
 {
     private const decimal TaxRate = 0.08m;
@@ -20,6 +24,28 @@ public sealed class InvoiceService(
         var status = ParseInvoiceStatus(query.Status);
 
         return await invoiceRepository.GetPagedAsync(page, pageSize, status, cancellationToken);
+    }
+
+    public async Task<PagedResult<Invoice>> GetMyInvoicesAsync(
+        Guid userId,
+        InvoiceQueryModel query,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Usuario no encontrado.");
+
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 200);
+        var status = ParseInvoiceStatus(query.Status);
+
+        return await invoiceRepository.GetPagedForUserAsync(
+            userId,
+            user.Email,
+            user.CustomerId,
+            page,
+            pageSize,
+            status,
+            cancellationToken);
     }
 
     public async Task<InvoiceStatsModel> GetStatsAsync(CancellationToken cancellationToken = default)
@@ -150,11 +176,192 @@ public sealed class InvoiceService(
         return invoice;
     }
 
+    public async Task<Invoice> CreateManualAsync(
+        CreateManualInvoiceModel request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.LineItems.Count == 0)
+        {
+            throw new InvalidOperationException("Debe enviar al menos un producto.");
+        }
+
+        var customerName = string.IsNullOrWhiteSpace(request.CustomerName)
+            ? "Cliente mostrador"
+            : request.CustomerName.Trim();
+
+        var customerEmail = string.IsNullOrWhiteSpace(request.CustomerEmail)
+            ? $"manual-{Guid.NewGuid():N}@elplonsazo.local"
+            : request.CustomerEmail.Trim();
+
+        var resolvedLines = new List<(Product Product, decimal Quantity)>();
+        var deductionLines = new List<StockDeductionLine>();
+        foreach (var line in request.LineItems)
+        {
+            Product? product = null;
+            if (line.ProductId.HasValue)
+            {
+                var products = await productRepository.GetByIdsAsync([line.ProductId.Value], cancellationToken);
+                products.TryGetValue(line.ProductId.Value, out product);
+            }
+            else if (!string.IsNullOrWhiteSpace(line.ProductCode))
+            {
+                product = await productRepository.GetByCodeAsync(line.ProductCode.Trim(), cancellationToken);
+            }
+
+            if (product is null)
+            {
+                throw new InvalidOperationException("Uno o más productos no existen.");
+            }
+
+            if (product.Status is ProductStatus.Inactive or ProductStatus.Archived)
+            {
+                throw new InvalidOperationException($"El producto {product.Code} no está disponible.");
+            }
+
+            if (line.Quantity <= 0)
+            {
+                throw new InvalidOperationException($"La cantidad debe ser mayor a cero para {product.Code}.");
+            }
+
+            deductionLines.Add(
+                new StockDeductionLine
+                {
+                    Product = product,
+                    Quantity = line.Quantity,
+                });
+            resolvedLines.Add((product, line.Quantity));
+        }
+
+        inventoryStockService.ValidateSufficientStock(deductionLines);
+
+        var subtotal = decimal.Round(
+            resolvedLines.Sum(li => li.Product.Price * li.Quantity),
+            2,
+            MidpointRounding.AwayFromZero);
+        var tax = decimal.Round(subtotal * TaxRate, 2, MidpointRounding.AwayFromZero);
+        var total = subtotal + tax;
+
+        var customer = await customerRepository.GetOrCreateAsync(customerName, customerEmail, cancellationToken);
+
+        Invoice? created = null;
+        await unitOfWork.ExecuteInTransactionAsync(
+            async ct =>
+            {
+                var now = DateTime.UtcNow;
+                var invoiceNumber = $"INV-{now:yyyyMMddHHmmssfff}";
+
+                var movements = await inventoryStockService.DeductStockAsync(
+                    deductionLines,
+                    "Venta factura manual",
+                    $"Factura {invoiceNumber}",
+                    now,
+                    ct);
+
+                var invoice = new Invoice
+                {
+                    Id = Guid.NewGuid(),
+                    InvoiceNumber = invoiceNumber,
+                    CustomerId = customer.Id,
+                    ClientName = customerName,
+                    ClientInitials = BuildInitials(customerName),
+                    BillingNote = string.IsNullOrWhiteSpace(request.BillingNote)
+                        ? "Factura manual creada por administrador."
+                        : request.BillingNote.Trim(),
+                    Status = InvoiceStatus.Pending,
+                    Subtotal = subtotal,
+                    Tax = tax,
+                    Total = total,
+                    IssueDate = now,
+                    DueDate = now.AddDays(30),
+                    LineItems = resolvedLines
+                        .Select(li => new InvoiceLineItem
+                        {
+                            Id = Guid.NewGuid(),
+                            ProductId = li.Product.Id,
+                            Description = $"{li.Product.Name} ({li.Product.Code})",
+                            Quantity = li.Quantity,
+                            MeasureUnit = li.Product.SaleUnit,
+                            UnitPrice = li.Product.Price,
+                        })
+                        .ToList(),
+                };
+
+                movementRepository.AddRange(movements.ToList());
+                invoiceRepository.Add(invoice);
+                await unitOfWork.SaveChangesAsync(ct);
+                created = invoice;
+            },
+            cancellationToken);
+
+        return created!;
+    }
+
+    public async Task<Invoice> PayInvoiceAsync(
+        Guid invoiceId,
+        PayInvoiceModel request,
+        Guid userId,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
+    {
+        var paymentMethod = request.PaymentMethod.Trim().ToLowerInvariant();
+        if (paymentMethod is not ("transferencia" or "tarjeta" or "efectivo"))
+        {
+            throw new InvalidOperationException("Método de pago inválido. Valores permitidos: transferencia, tarjeta, efectivo.");
+        }
+
+        if (!isAdmin)
+        {
+            var user = await userRepository.GetByIdAsync(userId, cancellationToken)
+                ?? throw new UnauthorizedAccessException("Usuario no encontrado.");
+
+            var ownsInvoice = await invoiceRepository.UserOwnsInvoiceAsync(
+                invoiceId,
+                userId,
+                user.Email,
+                user.CustomerId,
+                cancellationToken);
+
+            if (!ownsInvoice)
+            {
+                throw new UnauthorizedAccessException("No tiene permiso para pagar esta factura.");
+            }
+        }
+
+        var invoice = await invoiceRepository.GetByIdTrackedForPaymentAsync(invoiceId, cancellationToken)
+            ?? throw new KeyNotFoundException("Factura no encontrada.");
+
+        if (invoice.Status == InvoiceStatus.Paid)
+        {
+            throw new InvalidOperationException("Esta factura ya está pagada.");
+        }
+
+        if (invoice.Status is not (InvoiceStatus.Pending or InvoiceStatus.Overdue))
+        {
+            throw new InvalidOperationException("Solo se pueden pagar facturas pendientes o vencidas.");
+        }
+
+        var paymentLabel = paymentMethod switch
+        {
+            "transferencia" => "transferencia bancaria",
+            "tarjeta" => "tarjeta",
+            _ => "efectivo",
+        };
+
+        invoice.Status = InvoiceStatus.Paid;
+        var paymentNote = $"Pagada vía {paymentLabel} el {DateTime.UtcNow:yyyy-MM-dd}.";
+        invoice.BillingNote = string.IsNullOrWhiteSpace(invoice.BillingNote)
+            ? paymentNote
+            : $"{invoice.BillingNote.Trim()} {paymentNote}";
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return invoice;
+    }
+
     private static bool TryParseInvoiceDate(string value, out DateTime date)
     {
-        if (DateTime.TryParse(value, out date))
+        if (DateTime.TryParse(value, out var parsed))
         {
-            date = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+            date = DateTime.SpecifyKind(parsed.Date, DateTimeKind.Unspecified);
             return true;
         }
 

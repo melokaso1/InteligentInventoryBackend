@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Api.Dtos;
 using Application.Abstractions;
 using Application.Models;
@@ -17,6 +18,11 @@ public sealed class ChatController(IChatService chatService, IChatbotGateway cha
         [FromBody] ChatMessageRequestDto request,
         CancellationToken cancellationToken = default)
     {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
         try
         {
             var result = await chatService.SendMessageAsync(
@@ -25,9 +31,14 @@ public sealed class ChatController(IChatService chatService, IChatbotGateway cha
                     SessionId = request.SessionId,
                     Message = request.Message,
                 },
+                userId,
                 cancellationToken);
 
             return Ok(ToDto(result));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
         }
         catch (InvalidOperationException ex)
         {
@@ -38,15 +49,19 @@ public sealed class ChatController(IChatService chatService, IChatbotGateway cha
     [HttpGet("health")]
     public async Task<IActionResult> GetHealth(CancellationToken cancellationToken = default)
     {
-        var healthy = await chatbotGateway.PingHealthAsync(cancellationToken);
-        if (!healthy)
+        var status = await chatbotGateway.GetHealthStatusAsync(cancellationToken);
+        if (status is null)
         {
             return StatusCode(
                 StatusCodes.Status503ServiceUnavailable,
                 "El servicio FastAPI del chatbot no está disponible. Verifica que esté en ejecución en http://localhost:8000.");
         }
 
-        return Ok(new { status = "ok", chatbot = "available" });
+        return Ok(new
+        {
+            status = status.Status,
+            chatbot = status.Chatbot,
+        });
     }
 
     [HttpGet("sessions/{token}/history")]
@@ -54,13 +69,32 @@ public sealed class ChatController(IChatService chatService, IChatbotGateway cha
         string token,
         CancellationToken cancellationToken = default)
     {
-        var history = await chatService.GetHistoryAsync(token, cancellationToken);
-        return Ok(history.Select(h => new ChatHistoryMessageDto
+        if (!TryGetUserId(out var userId))
         {
-            SenderType = h.SenderType,
-            MessageText = h.MessageText,
-            CreatedAt = h.CreatedAt,
-        }).ToList());
+            return Unauthorized();
+        }
+
+        try
+        {
+            var history = await chatService.GetHistoryAsync(token, userId, cancellationToken);
+            return Ok(history.Select(h => new ChatHistoryMessageDto
+            {
+                SenderType = h.SenderType,
+                MessageText = h.MessageText,
+                CreatedAt = h.CreatedAt,
+                MetadataJson = h.MetadataJson,
+            }).ToList());
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+        }
+    }
+
+    private bool TryGetUserId(out Guid userId)
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out userId);
     }
 
     private static ChatMessageResponseDto ToDto(ChatMessageResult result) =>
@@ -84,5 +118,14 @@ public sealed class ChatController(IChatService chatService, IChatbotGateway cha
                     Tax = result.OperationSummary.Tax,
                     Total = result.OperationSummary.Total,
                 },
+            Offers = result.Offers?.Select(o => new ChatProductOfferDto
+            {
+                ProductCode = o.ProductCode,
+                ProductName = o.ProductName,
+                UnitPrice = o.UnitPrice,
+                Stock = o.Stock,
+                SaleUnit = o.SaleUnit,
+            }).ToList(),
+            OffersTotalCount = result.OffersTotalCount,
         };
 }

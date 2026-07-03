@@ -1,4 +1,5 @@
 using Application.Abstractions;
+using Infrastructure.HostedServices;
 using Infrastructure.Integrations;
 using Infrastructure.Persistence;
 using Infrastructure.Persistence.Repositories;
@@ -34,8 +35,10 @@ public static class DependencyInjection
 
         services.AddHttpClient<IChatbotGateway, ChatbotGateway>(client =>
         {
-            client.Timeout = TimeSpan.FromSeconds(30);
+            client.Timeout = TimeSpan.FromSeconds(150);
         });
+
+        services.AddHostedService<ChatRetentionHostedService>();
 
         return services;
     }

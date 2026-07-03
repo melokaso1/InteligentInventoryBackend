@@ -7,7 +7,7 @@ public sealed class InventoryItemDto
     public string Name { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string Warehouse { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public string StockLevel { get; set; } = "high";
     public decimal StockPercent { get; set; }
@@ -17,7 +17,7 @@ public sealed class InventoryItemDto
 public sealed class InventoryStatsDto
 {
     public int TotalItems { get; set; }
-    public int TotalUnits { get; set; }
+    public decimal TotalUnits { get; set; }
     public decimal TotalValue { get; set; }
     public int LowStockCount { get; set; }
     public int OutOfStockCount { get; set; }
@@ -37,7 +37,7 @@ public sealed class AdjustmentRequest
 {
     public Guid? ProductId { get; set; }
     public string? ProductCode { get; set; }
-    public int QuantityChange { get; set; }
+    public decimal QuantityChange { get; set; }
     public string Reason { get; set; } = "Ajuste manual";
     public string Detail { get; set; } = string.Empty;
 }

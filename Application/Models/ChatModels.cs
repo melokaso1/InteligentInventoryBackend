@@ -13,11 +13,21 @@ public sealed class ChatOperationSummary
     public string Status { get; set; } = string.Empty;
     public string ProductCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public string MeasureUnit { get; set; } = "unit";
     public decimal Subtotal { get; set; }
     public decimal Tax { get; set; }
     public decimal Total { get; set; }
+}
+
+public sealed class ChatProductOffer
+{
+    public string ProductCode { get; set; } = string.Empty;
+    public string ProductName { get; set; } = string.Empty;
+    public decimal UnitPrice { get; set; }
+    public decimal Stock { get; set; }
+    public string SaleUnit { get; set; } = "unit";
 }
 
 public sealed class ChatMessageResult
@@ -28,6 +38,8 @@ public sealed class ChatMessageResult
     public string? InvoiceNumber { get; set; }
     public IReadOnlyList<string>? Chips { get; set; }
     public ChatOperationSummary? OperationSummary { get; set; }
+    public IReadOnlyList<ChatProductOffer>? Offers { get; set; }
+    public int? OffersTotalCount { get; set; }
 }
 
 public sealed class ChatHistoryMessage
@@ -35,4 +47,11 @@ public sealed class ChatHistoryMessage
     public string SenderType { get; set; } = string.Empty;
     public string MessageText { get; set; } = string.Empty;
     public string CreatedAt { get; set; } = string.Empty;
+    public string? MetadataJson { get; set; }
+}
+
+public sealed class ChatbotHealthStatus
+{
+    public string Status { get; set; } = "ok";
+    public string Chatbot { get; set; } = "available";
 }

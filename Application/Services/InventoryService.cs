@@ -14,10 +14,13 @@ public sealed class InventoryService(
     IInventoryMovementRepository movementRepository,
     IUnitOfWork unitOfWork) : IInventoryService
 {
+    private const int MaxPageSize = 200;
+    private const int MaxExportPageSize = 500;
+
     public async Task<PagedResult<Product>> GetInventoryAsync(InventoryQueryModel query, CancellationToken cancellationToken = default)
     {
         var page = Math.Max(1, query.Page);
-        var pageSize = Math.Clamp(query.PageSize, 1, 200);
+        var pageSize = Math.Clamp(query.PageSize, 1, MaxExportPageSize);
 
         var inventories = await inventoryRepository.GetFilteredAsync(
             query.Query,

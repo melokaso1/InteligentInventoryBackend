@@ -160,14 +160,17 @@ namespace Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("CurrentStock")
-                        .HasColumnType("integer");
+                    b.Property<decimal>("CurrentStock")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
 
-                    b.Property<int>("MaxStock")
-                        .HasColumnType("integer");
+                    b.Property<decimal>("MaxStock")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
 
-                    b.Property<int>("MinStock")
-                        .HasColumnType("integer");
+                    b.Property<decimal>("MinStock")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
 
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
@@ -207,8 +210,9 @@ namespace Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("QuantityChange")
-                        .HasColumnType("integer");
+                    b.Property<decimal>("QuantityChange")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
 
                     b.Property<string>("Reason")
                         .IsRequired()
@@ -301,11 +305,15 @@ namespace Infrastructure.Persistence.Migrations
                     b.Property<Guid>("InvoiceId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("MeasureUnit")
+                        .HasColumnType("integer");
+
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer");
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
 
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
@@ -388,7 +396,17 @@ namespace Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<int>("SaleUnit")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("UnitContentAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int?>("UnitContentMeasure")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -528,17 +546,22 @@ namespace Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("MeasureUnit")
+                        .HasColumnType("integer");
+
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer");
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
 
                     b.Property<Guid>("SaleId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("UnitPrice")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
 

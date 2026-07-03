@@ -20,7 +20,7 @@ public sealed class ChatbotIntegrationController(IProductService productService)
         CancellationToken cancellationToken = default)
     {
         var safePage = Math.Max(1, page);
-        var safePageSize = Math.Clamp(pageSize, 1, 10);
+        var safePageSize = Math.Clamp(pageSize, 1, 15);
 
         var result = await productService.GetProductsAsync(
             new ProductQueryModel { Query = q, Page = safePage, PageSize = safePageSize },

@@ -65,6 +65,10 @@ public sealed class ChatbotGateway(
                 "No se pudo conectar con el chatbot FastAPI en el puerto 8000. Verifica que el servicio esté en ejecución (cd LLMChatBot && python run.py).",
                 ex);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogError(ex, "Timeout al contactar al chatbot en {Endpoint}", endpoint);
@@ -72,9 +76,22 @@ public sealed class ChatbotGateway(
                 "El servicio de chatbot no respondió a tiempo. Verifica que FastAPI esté en ejecución en http://localhost:8000.",
                 ex);
         }
+        catch (JsonException ex)
+        {
+            logger.LogError(ex, "Error al deserializar respuesta del chatbot en {Endpoint}", endpoint);
+            throw new InvalidOperationException(
+                "No se pudo interpretar la respuesta del chatbot. Inténtalo de nuevo en un momento.",
+                ex);
+        }
     }
 
     public async Task<bool> PingHealthAsync(CancellationToken cancellationToken = default)
+    {
+        var status = await GetHealthStatusAsync(cancellationToken);
+        return status is not null;
+    }
+
+    public async Task<ChatbotHealthStatus?> GetHealthStatusAsync(CancellationToken cancellationToken = default)
     {
         var baseUrl = configuration["Chatbot:BaseUrl"] ?? "http://localhost:8000";
         var endpoint = $"{baseUrl.TrimEnd('/')}/health";
@@ -82,12 +99,36 @@ public sealed class ChatbotGateway(
         try
         {
             using var response = await httpClient.GetAsync(endpoint, cancellationToken);
-            return response.IsSuccessStatusCode;
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var payload = await response.Content.ReadFromJsonAsync<FastApiHealthResponse>(cancellationToken);
+            if (payload is null)
+            {
+                return null;
+            }
+
+            return new ChatbotHealthStatus
+            {
+                Status = payload.Status ?? "ok",
+                Chatbot = payload.Service ?? "available",
+            };
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (TaskCanceledException ex)
+        {
+            logger.LogWarning(ex, "Health check del chatbot falló (timeout) en {Endpoint}", endpoint);
+            return null;
+        }
+        catch (HttpRequestException ex)
         {
             logger.LogWarning(ex, "Health check del chatbot falló en {Endpoint}", endpoint);
-            return false;
+            return null;
         }
     }
 
@@ -115,7 +156,25 @@ public sealed class ChatbotGateway(
                     Tax = payload.OperationSummary.Tax,
                     Total = payload.OperationSummary.Total,
                 },
+            Offers = payload.Offers?.Select(o => new ChatProductOffer
+            {
+                ProductCode = o.ProductCode,
+                ProductName = o.ProductName,
+                UnitPrice = o.UnitPrice,
+                Stock = o.Stock,
+                SaleUnit = o.SaleUnit ?? "unit",
+            }).ToList(),
+            OffersTotalCount = payload.OffersTotalCount,
         };
+
+    private sealed class FastApiHealthResponse
+    {
+        [JsonPropertyName("status")]
+        public string? Status { get; set; }
+
+        [JsonPropertyName("service")]
+        public string? Service { get; set; }
+    }
 
     private sealed record FastApiChatRequest(
         [property: JsonPropertyName("sessionId")] string SessionId,
@@ -141,6 +200,30 @@ public sealed class ChatbotGateway(
 
         [JsonPropertyName("operationSummary")]
         public FastApiOperationSummary? OperationSummary { get; set; }
+
+        [JsonPropertyName("offers")]
+        public List<FastApiProductOffer>? Offers { get; set; }
+
+        [JsonPropertyName("offersTotalCount")]
+        public int? OffersTotalCount { get; set; }
+    }
+
+    private sealed class FastApiProductOffer
+    {
+        [JsonPropertyName("productCode")]
+        public string ProductCode { get; set; } = string.Empty;
+
+        [JsonPropertyName("productName")]
+        public string ProductName { get; set; } = string.Empty;
+
+        [JsonPropertyName("unitPrice")]
+        public decimal UnitPrice { get; set; }
+
+        [JsonPropertyName("stock")]
+        public decimal Stock { get; set; }
+
+        [JsonPropertyName("saleUnit")]
+        public string? SaleUnit { get; set; }
     }
 
     private sealed class FastApiOperationSummary
@@ -158,7 +241,7 @@ public sealed class ChatbotGateway(
         public string ProductName { get; set; } = string.Empty;
 
         [JsonPropertyName("quantity")]
-        public int Quantity { get; set; }
+        public decimal Quantity { get; set; }
 
         [JsonPropertyName("unitPrice")]
         public decimal UnitPrice { get; set; }

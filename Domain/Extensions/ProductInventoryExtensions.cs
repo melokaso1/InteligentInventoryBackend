@@ -13,10 +13,10 @@ public static class ProductInventoryExtensions
         product.Inventories.FirstOrDefault(i =>
             string.Equals(i.Warehouse.Name, warehouseName, StringComparison.OrdinalIgnoreCase));
 
-    public static int GetStock(this Product product) =>
+    public static decimal GetStock(this Product product) =>
         product.GetDefaultInventory()?.CurrentStock ?? 0;
 
-    public static int GetMaxStock(this Product product) =>
+    public static decimal GetMaxStock(this Product product) =>
         product.GetDefaultInventory()?.MaxStock ?? 0;
 
     public static string GetWarehouseName(this Product product) =>

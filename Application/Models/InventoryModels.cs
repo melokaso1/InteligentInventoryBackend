@@ -13,7 +13,7 @@ public sealed class InventoryQueryModel
 public sealed class InventoryStatsModel
 {
     public int TotalItems { get; init; }
-    public int TotalUnits { get; init; }
+    public decimal TotalUnits { get; init; }
     public decimal TotalValue { get; init; }
     public int LowStockCount { get; init; }
     public int OutOfStockCount { get; init; }
@@ -33,7 +33,7 @@ public sealed class AdjustmentModel
 {
     public Guid? ProductId { get; init; }
     public string? ProductCode { get; init; }
-    public int QuantityChange { get; init; }
+    public decimal QuantityChange { get; init; }
     public string? Reason { get; init; }
     public string? Detail { get; init; }
 }

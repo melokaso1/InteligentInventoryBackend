@@ -10,6 +10,9 @@ public class Product
     public int CategoryId { get; set; }
     public Category Category { get; set; } = null!;
     public decimal Price { get; set; }
+    public SaleMeasureUnit SaleUnit { get; set; } = SaleMeasureUnit.Unit;
+    public decimal? UnitContentAmount { get; set; }
+    public SaleMeasureUnit? UnitContentMeasure { get; set; }
     public ProductStatus Status { get; set; } = ProductStatus.Active;
     public string Icon { get; set; } = "inventory_2";
     public string Description { get; set; } = string.Empty;

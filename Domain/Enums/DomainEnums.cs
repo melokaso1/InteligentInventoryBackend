@@ -43,3 +43,13 @@ public enum ChatSenderType
     Bot,
     System
 }
+
+public enum SaleMeasureUnit
+{
+    Unit = 0,
+    Gram = 1,
+    Kilogram = 2,
+    Milligram = 3,
+    Milliliter = 4,
+    Liter = 5,
+}

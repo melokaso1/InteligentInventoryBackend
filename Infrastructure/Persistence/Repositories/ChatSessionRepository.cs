@@ -24,6 +24,28 @@ public sealed class ChatSessionRepository(AppDbContext context) : IChatSessionRe
             .OrderBy(m => m.CreatedAt)
             .ToListAsync(cancellationToken);
 
+    public Task<int> DeleteMessagesOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default) =>
+        context.ChatMessages
+            .Where(m => m.CreatedAt < cutoffUtc)
+            .ExecuteDeleteAsync(cancellationToken);
+
+    public async Task<int> DeleteEmptySessionsAsync(CancellationToken cancellationToken = default)
+    {
+        var emptySessionIds = await context.ChatSessions
+            .Where(cs => !context.ChatMessages.Any(m => m.ChatSessionId == cs.Id))
+            .Select(cs => cs.Id)
+            .ToListAsync(cancellationToken);
+
+        if (emptySessionIds.Count == 0)
+        {
+            return 0;
+        }
+
+        return await context.ChatSessions
+            .Where(cs => emptySessionIds.Contains(cs.Id))
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
     public void Add(ChatSession entity) => context.ChatSessions.Add(entity);
 
     public void AddMessage(ChatMessage entity) => context.ChatMessages.Add(entity);

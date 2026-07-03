@@ -16,11 +16,16 @@ public static class EntityMappers
             Name = product.Name,
             Category = product.Category.Name,
             Price = product.Price,
+            SaleUnit = product.SaleUnit.ToApiValue(),
+            AllowsFractional = product.SaleUnit.AllowsFractional(),
             Stock = product.GetStock(),
             MaxStock = product.GetMaxStock(),
             Status = ToFrontendProductStatus(product.Status),
             Icon = product.Icon,
             Description = product.Description,
+            UnitContentLabel = SaleMeasureUnitExtensions.ToUnitContentLabel(
+                product.UnitContentAmount,
+                product.UnitContentMeasure),
         };
 
     public static InventoryItemDto ToInventoryItemDto(this Product product)
@@ -78,6 +83,7 @@ public static class EntityMappers
             Icon = lineItem.Product?.Icon ?? "receipt_long",
             Quantity = lineItem.Quantity,
             UnitPrice = lineItem.UnitPrice,
+            MeasureUnit = lineItem.MeasureUnit.ToApiValue(),
         };
 
     public static InvoiceDto ToInvoiceDto(this Invoice invoice) =>
@@ -87,8 +93,8 @@ public static class EntityMappers
             Client = invoice.ClientName,
             ClientInitials = invoice.ClientInitials,
             BillingNote = invoice.BillingNote,
-            Date = invoice.IssueDate.ToString("O"),
-            DueDate = invoice.DueDate.ToString("O"),
+            Date = invoice.IssueDate.ToString("yyyy-MM-dd"),
+            DueDate = invoice.DueDate.ToString("yyyy-MM-dd"),
             Amount = invoice.Total,
             Status = ToFrontendInvoiceStatus(invoice.Status),
             LineItems = invoice.LineItems.Select(ToInvoiceLineItemDto).ToList(),
@@ -97,6 +103,7 @@ public static class EntityMappers
             Total = invoice.Total,
             InvoiceNumber = invoice.InvoiceNumber,
             SaleId = invoice.SaleId,
+            Source = ToInvoiceSource(invoice),
         };
 
     public static InvoiceLineItemDto ToInvoiceLineItemDto(this InvoiceLineItem lineItem) =>
@@ -105,6 +112,7 @@ public static class EntityMappers
             Description = lineItem.Description,
             Quantity = lineItem.Quantity,
             UnitPrice = lineItem.UnitPrice,
+            MeasureUnit = lineItem.MeasureUnit.ToApiValue(),
         };
 
     public static ActivityItemDto ToActivityItemDto(this Sale sale) =>
@@ -180,6 +188,13 @@ public static class EntityMappers
         InvoiceStatus.Overdue => "overdue",
         InvoiceStatus.Draft => "draft",
         _ => "draft",
+    };
+
+    public static string ToInvoiceSource(Invoice invoice) => invoice.SaleId switch
+    {
+        null => "manual",
+        _ when invoice.Sale?.Origin == SaleOrigin.Chatbot => "chatbot",
+        _ => "sale",
     };
 
     public static bool TryParseProductStatus(string status, out ProductStatus parsed)

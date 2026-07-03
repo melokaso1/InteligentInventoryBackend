@@ -10,7 +10,7 @@ public class InventoryMovement
     public Guid? InventoryId { get; set; }
     public Inventory? Inventory { get; set; }
     public StockMovementType Type { get; set; }
-    public int QuantityChange { get; set; }
+    public decimal QuantityChange { get; set; }
     public string Reason { get; set; } = string.Empty;
     public string Detail { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

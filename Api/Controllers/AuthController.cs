@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Api.Dtos;
 using Application.Models;
 using Application.Services;
@@ -54,8 +55,48 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            if (IsWeakPasswordError(ex.Message))
+            {
+                return BadRequest(ErrorPayload(ex.Message));
+            }
+
             // Keep error payload consistent for frontend parsing.
             return Conflict(ErrorPayload(ex.Message));
+        }
+    }
+
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId is null || !Guid.TryParse(userId, out var id))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            await authService.ChangePasswordAsync(
+                new ChangePasswordModel
+                {
+                    UserId = id,
+                    CurrentPassword = request.CurrentPassword,
+                    NewPassword = request.NewPassword,
+                },
+                cancellationToken);
+
+            return Ok(new { message = "Contraseña actualizada correctamente." });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ErrorPayload(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ErrorPayload(ex.Message));
         }
     }
 
@@ -63,7 +104,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
     [HttpGet("me")]
     public ActionResult<AuthUserDto> Me()
     {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? string.Empty;
         var name = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? string.Empty;
         var role = User.IsInRole("Admin") ? "admin" : "cliente";
@@ -93,4 +134,11 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
             Role = result.User.Role,
         },
     };
+
+    private static bool IsWeakPasswordError(string message) =>
+        message.StartsWith("Longitud insuficiente", StringComparison.Ordinal)
+        || message.StartsWith("Falta mayúscula", StringComparison.Ordinal)
+        || message.StartsWith("Falta minúscula", StringComparison.Ordinal)
+        || message.StartsWith("Falta número", StringComparison.Ordinal)
+        || message.StartsWith("Falta símbolo", StringComparison.Ordinal);
 }

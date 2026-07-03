@@ -9,6 +9,7 @@ public static class DependencyInjection
     {
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<IInventoryService, InventoryService>();
+        services.AddScoped<IInventoryStockService, InventoryStockService>();
         services.AddScoped<ISaleService, SaleService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<IDashboardService, DashboardService>();

@@ -15,7 +15,7 @@ public sealed class DashboardService(
 {
     public async Task<List<DashboardKpiModel>> GetKpisAsync(CancellationToken cancellationToken = default)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
         var tomorrow = today.AddDays(1);
         var culture = CultureInfo.GetCultureInfo("es-CO");
 

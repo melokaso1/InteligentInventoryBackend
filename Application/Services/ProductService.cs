@@ -69,31 +69,30 @@ public sealed class ProductService(
             Code = normalizedCode,
             Name = request.Name.Trim(),
             CategoryId = category.Id,
-            Category = category,
             Price = decimal.Round(request.Price, 2, MidpointRounding.AwayFromZero),
             Status = status,
             Icon = request.Icon.Trim(),
             Description = request.Description.Trim(),
             CreatedAt = now,
             UpdatedAt = now,
-            Inventories =
-            [
-                new Inventory
-                {
-                    Id = Guid.NewGuid(),
-                    WarehouseId = warehouse.Id,
-                    Warehouse = warehouse,
-                    CurrentStock = request.Stock,
-                    MinStock = Math.Max(1, request.MaxStock / 4),
-                    MaxStock = request.MaxStock,
-                    UpdatedAt = now,
-                },
-            ],
         };
 
+        var inventory = new Inventory
+        {
+            Id = Guid.NewGuid(),
+            ProductId = entity.Id,
+            WarehouseId = warehouse.Id,
+            CurrentStock = request.Stock,
+            MinStock = Math.Max(1, request.MaxStock / 4),
+            MaxStock = request.MaxStock,
+            UpdatedAt = now,
+        };
+
+        entity.Inventories.Add(inventory);
         productRepository.Add(entity);
+        inventoryRepository.Add(inventory);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return entity;
+        return await productRepository.GetByIdAsync(entity.Id, cancellationToken) ?? entity;
     }
 
     public async Task<Product> UpdateAsync(Guid id, UpdateProductModel request, CancellationToken cancellationToken = default)
@@ -122,7 +121,7 @@ public sealed class ProductService(
                 Id = Guid.NewGuid(),
                 ProductId = entity.Id,
                 WarehouseId = warehouse.Id,
-                Warehouse = warehouse,
+                UpdatedAt = DateTime.UtcNow,
             };
             inventoryRepository.Add(inventory);
             entity.Inventories.Add(inventory);
@@ -130,7 +129,6 @@ public sealed class ProductService(
         else if (inventory.WarehouseId != warehouse.Id)
         {
             inventory.WarehouseId = warehouse.Id;
-            inventory.Warehouse = warehouse;
         }
 
         inventory.CurrentStock = request.Stock;
@@ -141,7 +139,6 @@ public sealed class ProductService(
         entity.Code = normalizedCode;
         entity.Name = request.Name.Trim();
         entity.CategoryId = category.Id;
-        entity.Category = category;
         entity.Price = decimal.Round(request.Price, 2, MidpointRounding.AwayFromZero);
         entity.Status = status;
         entity.Icon = request.Icon.Trim();
@@ -149,7 +146,7 @@ public sealed class ProductService(
         entity.UpdatedAt = DateTime.UtcNow;
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return entity;
+        return await productRepository.GetByIdAsync(entity.Id, cancellationToken) ?? entity;
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -186,8 +183,8 @@ public sealed class ProductService(
             Code = duplicateCode,
             Name = $"{source.Name} (Copia)",
             CategoryId = source.CategoryId,
-            Category = source.Category,
             Price = source.Price,
+            SaleUnit = source.SaleUnit,
             Status = source.GetStock() <= 0 ? ProductStatus.OutOfStock : source.Status,
             Icon = source.Icon,
             Description = source.Description,
@@ -209,7 +206,7 @@ public sealed class ProductService(
 
         productRepository.Add(duplicate);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return duplicate;
+        return await productRepository.GetByIdAsync(duplicate.Id, cancellationToken) ?? duplicate;
     }
 
     public async Task<Product> PatchStatusAsync(Guid id, string status, CancellationToken cancellationToken = default)
@@ -246,7 +243,7 @@ public sealed class ProductService(
             ?? throw new InvalidOperationException("No hay almacén configurado.");
     }
 
-    private static void ValidateNumericValues(decimal price, int stock, int maxStock)
+    private static void ValidateNumericValues(decimal price, decimal stock, decimal maxStock)
     {
         if (price < 0 || stock < 0 || maxStock < 0)
         {
@@ -254,7 +251,7 @@ public sealed class ProductService(
         }
     }
 
-    private static ProductStatus ResolveStatus(string? requestedStatus, int stock)
+    private static ProductStatus ResolveStatus(string? requestedStatus, decimal stock)
     {
         if (stock <= 0)
         {

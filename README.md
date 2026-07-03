@@ -27,7 +27,9 @@ Backend/
 
 ## Configuración
 
-`Api/appsettings.Development.json`:
+El repositorio incluye **`.env`** con valores de desarrollo listos para usar (no hace falta copiar desde `.env.example`).
+
+`Api/appsettings.Development.json` y `Backend/.env` usan los mismos valores por defecto:
 
 ```json
 {
@@ -35,16 +37,19 @@ Backend/
     "Default": "Host=localhost;Port=5433;Database=elplonsazo;Username=elplonsazo;Password=elplonsazo_dev"
   },
   "Chatbot": {
-    "BaseUrl": "http://localhost:8000"
+    "BaseUrl": "http://localhost:8000",
+    "ApiKey": "elplonsazo-chatbot-dev-key"
   }
 }
 ```
 
+Al ejecutar `dotnet run`, la API carga automáticamente `Backend/.env` (variables con formato `Seccion__Clave`).
+
 ## Ejecución
 
-### Arranque completo (4 servicios)
+### Arranque completo (5 servicios)
 
-Para que login, dashboard, chatbot y facturas funcionen en local, levanta **todos** los servicios en este orden:
+Para que login, dashboard, chatbot con IA y facturas funcionen en local, levanta **todos** los servicios en este orden:
 
 ```bash
 # 1. Base de datos (desde la raíz del monorepo)
@@ -67,7 +72,7 @@ pnpm dev
 |----------|--------|------------------|
 | PostgreSQL (Docker) | 5433 | API, persistencia |
 | API .NET | **5151** | Login, CRUD, proxy chat |
-| FastAPI chatbot | **8000** | `/chatbot` (consultas IA) |
+| FastAPI chatbot | **8000** | `/chatbot` (consultas) |
 | Vite dev server | 5173 | UI en navegador |
 
 ### Frontend: localhost y ngrok
@@ -124,7 +129,33 @@ La API escucha en **http://localhost:5151**.
 Al iniciar en Development:
 
 1. Aplica migraciones pendientes (`Database.MigrateAsync`).
-2. Siembra datos si no hay productos (catálogo El Plonsazo, ventas y facturas de ejemplo).
+2. Siembra el catálogo ficticio El Plonsazo (**29 productos**) solo si la tabla `Products` está vacía.
+
+### Re-sembrar catálogo (BD con datos QA obsoletos)
+
+Si en Inventario o Productos ves un único registro de prueba (p. ej. SKU `TEST-001`, categoría `Hardware`, nombre «Producto de Prueba QA») en lugar de los ~29 productos `PLZ-*`, la base de datos conserva datos creados manualmente en una sesión anterior.
+
+**Arreglo rápido:** reinicia la API (`dotnet run` en `Backend/Api`). En cada arranque se eliminan automáticamente SKUs de prueba conocidos (`TEST-001`, `TEST-*`, `*COPY-TEST*`, categoría `Hardware` sin prefijo `PLZ-`) y la categoría `Hardware` huérfana. Si tras la limpieza no queda ningún producto, el seeder vuelve a cargar los ~29 `PLZ-*`.
+
+También puedes borrar el producto desde **Productos → icono de papelera** en la UI.
+
+Para un reset completo de la base de datos:
+
+```bash
+# Desde la raíz del monorepo — borra el volumen PostgreSQL
+docker compose down -v
+
+# Levanta PostgreSQL limpio
+docker compose up -d
+
+# Reinicia la API para aplicar migraciones y seed
+cd Backend/Api
+dotnet run
+```
+
+Tras el arranque deberías ver en logs algo como `Seed completado: 29 productos…` y en la UI categorías como Alucinógenos, Estimulantes, Inhalantes, Disociativos y Depresores (sin `Hardware`).
+
+Los filtros de categoría y nivel de stock arrancan en **Todos**; si solo aparece un registro, revisa que no queden filtros activos en la barra superior.
 
 ## Migraciones EF Core
 

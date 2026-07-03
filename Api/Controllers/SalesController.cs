@@ -89,7 +89,12 @@ public sealed class SalesController(ISaleService saleService) : ControllerBase
                     Origin = request.Origin,
                     Status = request.Status,
                     LineItems = request.LineItems
-                        .Select(li => new CreateSaleLineItemModel { ProductId = li.ProductId, Quantity = li.Quantity })
+                        .Select(li => new CreateSaleLineItemModel
+                        {
+                            ProductId = li.ProductId,
+                            Quantity = li.Quantity,
+                            MeasureUnit = li.MeasureUnit,
+                        })
                         .ToList(),
                 },
                 cancellationToken);
@@ -127,36 +132,29 @@ public sealed class SalesController(ISaleService saleService) : ControllerBase
         [FromBody] CreateSaleFromChatbotRequest request,
         CancellationToken cancellationToken = default)
     {
-        // #region agent log
         try
         {
-            var dbg = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                sessionId = "cb4b87",
-                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                location = "SalesController.cs:CreateSaleFromChatbot",
-                message = "anonymous from-chatbot hit",
-                data = new
+            var lineItems = (request.LineItems?.Count > 0
+                    ? request.LineItems
+                    :
+                    [
+                        new CreateSaleFromChatbotLineItemRequest
+                        {
+                            ProductCode = request.ProductCode,
+                            Quantity = request.Quantity,
+                            MeasureUnit = request.MeasureUnit,
+                        },
+                    ])
+                .Select(li => new ChatbotSaleLineItemModel
                 {
-                    productCode = request.ProductCode,
-                    quantity = request.Quantity,
-                    isAuthenticated = User.Identity?.IsAuthenticated ?? false,
-                    hasApiKey = Request.Headers.ContainsKey(ChatbotApiKeyAttribute.HeaderName),
-                },
-                hypothesisId = "H2",
-                runId = "post-fix",
-            });
-            System.IO.File.AppendAllText(
-                @"D:\CAMPUS\Programacion\LLM IA python\Codigo\Proyecto LLM\debug-cb4b87.log",
-                dbg + Environment.NewLine);
-        }
-        catch { }
-        // #endregion
-        try
-        {
+                    ProductCode = li.ProductCode,
+                    Quantity = li.Quantity,
+                    MeasureUnit = li.MeasureUnit,
+                })
+                .ToList();
+
             var result = await saleService.CreateSaleFromChatbotAsync(
-                request.ProductCode,
-                request.Quantity,
+                lineItems,
                 request.CustomerName,
                 request.CustomerEmail,
                 request.SessionId,
