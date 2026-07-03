@@ -25,5 +25,10 @@ public sealed class NotificationRepository(AppDbContext context) : INotification
     public Task<Notification?> GetByIdTrackedAsync(Guid id, CancellationToken cancellationToken = default) =>
         context.Notifications.FirstOrDefaultAsync(n => n.Id == id, cancellationToken);
 
+    public Task<int> DeleteAllForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        context.Notifications
+            .Where(n => n.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
     public void Add(Notification notification) => context.Notifications.Add(notification);
 }

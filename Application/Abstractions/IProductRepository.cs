@@ -12,6 +12,7 @@ public interface IProductRepository
         ProductStatus? status,
         int page,
         int pageSize,
+        bool availableForSaleOnly = false,
         CancellationToken cancellationToken = default);
     Task<List<Product>> GetFilteredAsync(string? query, string? category, string? warehouse, CancellationToken cancellationToken = default);
     Task<List<Product>> GetAllAsync(CancellationToken cancellationToken = default);

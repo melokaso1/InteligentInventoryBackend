@@ -7,6 +7,8 @@ public class Customer
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? DocumentNumber { get; set; }
+    public string? SavedDeliveryAddress { get; set; }
+    public string? SavedDeliveryCity { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public User? User { get; set; }

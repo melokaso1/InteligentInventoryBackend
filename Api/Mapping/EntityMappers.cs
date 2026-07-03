@@ -241,6 +241,7 @@ public static class EntityMappers
                     Message = i.Message,
                     Type = i.Type,
                     SaleId = i.SaleId,
+                    InvoiceId = i.InvoiceId,
                     IsRead = i.IsRead,
                     CreatedAt = i.CreatedAt,
                 })

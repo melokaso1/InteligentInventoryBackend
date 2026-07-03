@@ -13,4 +13,5 @@ public interface INotificationService
         CancellationToken cancellationToken = default);
     Task<NotificationListModel> GetForUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task MarkAsReadAsync(Guid notificationId, Guid userId, CancellationToken cancellationToken = default);
+    Task ClearAllForUserAsync(Guid userId, CancellationToken cancellationToken = default);
 }

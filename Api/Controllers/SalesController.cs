@@ -1,4 +1,3 @@
-using Api.Caching;
 using Api.Dtos;
 using Api.Filters;
 using Api.Mapping;
@@ -6,14 +5,13 @@ using Application.Models;
 using Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace Api.Controllers;
 
 [Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/sales")]
-public sealed class SalesController(ISaleService saleService, IMemoryCache cache) : ControllerBase
+public sealed class SalesController(ISaleService saleService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetSales(
@@ -27,21 +25,16 @@ public sealed class SalesController(ISaleService saleService, IMemoryCache cache
     {
         try
         {
-            var cacheKey = $"sales:list:{from:O}:{to:O}:{origin}:{status}:{page}:{pageSize}";
-            var result = await EndpointCache.GetOrCreateAsync(
-                cache,
-                cacheKey,
-                async ct => await saleService.GetSalesAsync(
-                    new SalesQueryModel
-                    {
-                        From = from,
-                        To = to,
-                        Origin = origin,
-                        Status = status,
-                        Page = page,
-                        PageSize = pageSize,
-                    },
-                    ct),
+            var result = await saleService.GetSalesAsync(
+                new SalesQueryModel
+                {
+                    From = from,
+                    To = to,
+                    Origin = origin,
+                    Status = status,
+                    Page = page,
+                    PageSize = pageSize,
+                },
                 cancellationToken);
 
             return Ok(result.ToPagedDto(s => s.ToSaleDto()));
@@ -62,19 +55,14 @@ public sealed class SalesController(ISaleService saleService, IMemoryCache cache
     {
         try
         {
-            var cacheKey = $"sales:metrics:{from:O}:{to:O}:{origin}:{status}";
-            var metrics = await EndpointCache.GetOrCreateAsync(
-                cache,
-                cacheKey,
-                async ct => await saleService.GetMetricsAsync(
-                    new SalesQueryModel
-                    {
-                        From = from,
-                        To = to,
-                        Origin = origin,
-                        Status = status,
-                    },
-                    ct),
+            var metrics = await saleService.GetMetricsAsync(
+                new SalesQueryModel
+                {
+                    From = from,
+                    To = to,
+                    Origin = origin,
+                    Status = status,
+                },
                 cancellationToken);
 
             return Ok(
@@ -193,6 +181,7 @@ public sealed class SalesController(ISaleService saleService, IMemoryCache cache
                 request.SessionId,
                 request.DeliveryAddress,
                 request.DeliveryCity,
+                request.SaveDeliveryAddress,
                 cancellationToken);
 
             return Ok(

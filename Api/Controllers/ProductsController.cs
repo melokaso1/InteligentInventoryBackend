@@ -1,5 +1,4 @@
 using System.Text;
-using Api.Caching;
 using Api.Dtos;
 using Api.Mapping;
 using Application.Models;
@@ -7,14 +6,12 @@ using Application.Services;
 using Domain.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
-
 namespace Api.Controllers;
 
 [Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/products")]
-public sealed class ProductsController(IProductService productService, IMemoryCache cache) : ControllerBase
+public sealed class ProductsController(IProductService productService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetProducts(
@@ -25,13 +22,8 @@ public sealed class ProductsController(IProductService productService, IMemoryCa
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"products:list:{q}:{category}:{status}:{page}:{pageSize}";
-        var result = await EndpointCache.GetOrCreateAsync(
-            cache,
-            cacheKey,
-            async ct => await productService.GetProductsAsync(
-                new ProductQueryModel { Query = q, Category = category, Status = status, Page = page, PageSize = pageSize },
-                ct),
+        var result = await productService.GetProductsAsync(
+            new ProductQueryModel { Query = q, Category = category, Status = status, Page = page, PageSize = pageSize },
             cancellationToken);
 
         return Ok(result.ToPagedDto(p => p.ToProductDto()));
@@ -40,11 +32,7 @@ public sealed class ProductsController(IProductService productService, IMemoryCa
     [HttpGet("stats")]
     public async Task<ActionResult<ProductStatsDto>> GetStats(CancellationToken cancellationToken = default)
     {
-        var stats = await EndpointCache.GetOrCreateAsync(
-            cache,
-            "products:stats",
-            async ct => await productService.GetStatsAsync(ct),
-            cancellationToken);
+        var stats = await productService.GetStatsAsync(cancellationToken);
         return Ok(
             new ProductStatsDto
             {

@@ -166,6 +166,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(c => c.Email).HasMaxLength(256);
             entity.Property(c => c.Phone).HasMaxLength(50);
             entity.Property(c => c.DocumentNumber).HasMaxLength(50);
+            entity.Property(c => c.SavedDeliveryAddress).HasMaxLength(300);
+            entity.Property(c => c.SavedDeliveryCity).HasMaxLength(100);
         });
     }
 
@@ -391,6 +393,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(n => n.Sale)
                 .WithMany()
                 .HasForeignKey(n => n.SaleId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(n => n.Invoice)
+                .WithMany()
+                .HasForeignKey(n => n.InvoiceId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
     }

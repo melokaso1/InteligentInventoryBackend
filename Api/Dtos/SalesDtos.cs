@@ -78,6 +78,7 @@ public sealed class CreateSaleFromChatbotRequest
     public string? SessionId { get; set; }
     public string? DeliveryAddress { get; set; }
     public string? DeliveryCity { get; set; }
+    public bool SaveDeliveryAddress { get; set; }
 }
 
 public sealed class CreateSaleFromChatbotResponse

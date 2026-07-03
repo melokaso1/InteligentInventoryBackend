@@ -22,25 +22,17 @@ public sealed class InventoryService(
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, MaxExportPageSize);
 
-        var inventories = await inventoryRepository.GetFilteredAsync(
+        var products = await productRepository.GetFilteredAsync(
             query.Query,
             query.Category,
             query.Warehouse,
             cancellationToken);
 
-        var products = inventories
-            .Select(i =>
-            {
-                i.Product.Inventories = [i];
-                return i.Product;
-            })
-            .ToList();
-
         var normalizedStockLevel = query.StockLevel?.Trim().ToLowerInvariant();
         if (!string.IsNullOrWhiteSpace(normalizedStockLevel))
         {
             products = products
-                .Where(p => StockLevelHelper.GetStockLevel(p.GetStock(), p.GetMaxStock()).StockLevel == normalizedStockLevel)
+                .Where(p => StockLevelHelper.MatchesStockLevelFilter(normalizedStockLevel, p.GetStock(), p.GetMaxStock()))
                 .ToList();
         }
 
@@ -165,14 +157,7 @@ public sealed class InventoryService(
         inventory.UpdatedAt = DateTime.UtcNow;
         product.UpdatedAt = DateTime.UtcNow;
 
-        if (inventory.CurrentStock <= 0)
-        {
-            product.Status = ProductStatus.OutOfStock;
-        }
-        else if (product.Status == ProductStatus.OutOfStock)
-        {
-            product.Status = ProductStatus.Active;
-        }
+        ProductStatusHelper.ApplyStockChange(product, inventory.CurrentStock);
 
         InventoryMovement? movement = null;
         if (actualChange != 0)

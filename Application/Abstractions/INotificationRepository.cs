@@ -7,5 +7,6 @@ public interface INotificationRepository
     Task<List<Notification>> GetForUserAsync(Guid userId, int limit, CancellationToken cancellationToken = default);
     Task<int> CountUnreadForUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<Notification?> GetByIdTrackedAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<int> DeleteAllForUserAsync(Guid userId, CancellationToken cancellationToken = default);
     void Add(Notification notification);
 }

@@ -1,4 +1,5 @@
 using Application.Abstractions;
+using Application.Common;
 using Application.Models;
 using Domain.Entities;
 using Domain.Enums;
@@ -41,7 +42,7 @@ public sealed class InventoryStockService(
             var inventory = await GetOrCreateInventoryAsync(line.Product, defaultWarehouse.Id, cancellationToken);
             inventory.CurrentStock -= saleQuantity;
             inventory.UpdatedAt = occurredAt;
-            line.Product.Status = inventory.CurrentStock <= 0 ? ProductStatus.OutOfStock : ProductStatus.Active;
+            ProductStatusHelper.ApplyStockChange(line.Product, inventory.CurrentStock);
             line.Product.UpdatedAt = occurredAt;
 
             movements.Add(

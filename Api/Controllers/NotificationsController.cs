@@ -23,6 +23,18 @@ public sealed class NotificationsController(INotificationService notificationSer
         return Ok(result.ToNotificationListDto());
     }
 
+    [HttpDelete]
+    public async Task<IActionResult> ClearAll(CancellationToken cancellationToken = default)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        await notificationService.ClearAllForUserAsync(userId, cancellationToken);
+        return NoContent();
+    }
+
     [HttpPatch("{id:guid}/read")]
     public async Task<IActionResult> MarkAsRead(Guid id, CancellationToken cancellationToken = default)
     {

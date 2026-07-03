@@ -27,6 +27,7 @@ public sealed class NotificationItemModel
     public string Message { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public Guid? SaleId { get; set; }
+    public Guid? InvoiceId { get; set; }
     public bool IsRead { get; set; }
     public string CreatedAt { get; set; } = string.Empty;
 }

@@ -3,6 +3,7 @@ using Application.Abstractions;
 using Application.Models;
 using Domain.Entities;
 using Domain.Enums;
+using Domain.Extensions;
 
 namespace Application.Services;
 
@@ -14,6 +15,7 @@ public sealed class InvoiceService(
     IUserRepository userRepository,
     IInventoryMovementRepository movementRepository,
     IInventoryStockService inventoryStockService,
+    INotificationService notificationService,
     IUnitOfWork unitOfWork) : IInvoiceService
 {
     private const decimal TaxRate = 0.19m;
@@ -214,9 +216,14 @@ public sealed class InvoiceService(
                 throw new InvalidOperationException("Uno o más productos no existen.");
             }
 
-            if (product.Status is ProductStatus.Inactive or ProductStatus.Archived)
+            if (product.Status is ProductStatus.Inactive or ProductStatus.Archived or ProductStatus.OutOfStock)
             {
                 throw new InvalidOperationException($"El producto {product.Code} no está disponible.");
+            }
+
+            if (product.GetStock() <= 0)
+            {
+                throw new InvalidOperationException($"El producto {product.Code} no tiene stock disponible.");
             }
 
             if (line.Quantity <= 0)
@@ -387,14 +394,27 @@ public sealed class InvoiceService(
             ? paymentNote
             : $"{invoice.BillingNote.Trim()} {paymentNote}";
 
+        var notifyCustomerPreparing = false;
         if (invoice.Sale is not null
             && invoice.Sale.FulfillmentStatus is not (FulfillmentStatus.Shipped or FulfillmentStatus.Delivered))
         {
             invoice.Sale.FulfillmentStatus = FulfillmentStatus.Preparing;
             invoice.Sale.PreparingSince ??= DateTime.UtcNow;
+            notifyCustomerPreparing = true;
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (notifyCustomerPreparing && invoice.Sale is not null)
+        {
+            invoice.Sale.Invoice = invoice;
+            await notificationService.NotifySaleFulfillmentChangeAsync(
+                invoice.Sale,
+                FulfillmentStatus.Preparing,
+                FulfillmentNotificationRecipient.Customer,
+                cancellationToken);
+        }
+
         return invoice;
     }
 

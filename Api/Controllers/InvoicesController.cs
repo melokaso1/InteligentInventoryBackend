@@ -1,20 +1,18 @@
 using System.Security.Claims;
 using System.Text;
-using Api.Caching;
 using Api.Dtos;
 using Api.Mapping;
 using Application.Models;
 using Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace Api.Controllers;
 
 [Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/invoices")]
-public sealed class InvoicesController(IInvoiceService invoiceService, IMemoryCache cache) : ControllerBase
+public sealed class InvoicesController(IInvoiceService invoiceService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetInvoices(
@@ -25,13 +23,8 @@ public sealed class InvoicesController(IInvoiceService invoiceService, IMemoryCa
     {
         try
         {
-            var cacheKey = $"invoices:list:{page}:{pageSize}:{status}";
-            var result = await EndpointCache.GetOrCreateAsync(
-                cache,
-                cacheKey,
-                async ct => await invoiceService.GetInvoicesAsync(
-                    new InvoiceQueryModel { Page = page, PageSize = pageSize, Status = status },
-                    ct),
+            var result = await invoiceService.GetInvoicesAsync(
+                new InvoiceQueryModel { Page = page, PageSize = pageSize, Status = status },
                 cancellationToken);
             return Ok(result.ToPagedDto(i => i.ToInvoiceDto()));
         }
@@ -44,11 +37,7 @@ public sealed class InvoicesController(IInvoiceService invoiceService, IMemoryCa
     [HttpGet("stats")]
     public async Task<ActionResult<InvoiceStatsDto>> GetStats(CancellationToken cancellationToken = default)
     {
-        var stats = await EndpointCache.GetOrCreateAsync(
-            cache,
-            "invoices:stats",
-            async ct => await invoiceService.GetStatsAsync(ct),
-            cancellationToken);
+        var stats = await invoiceService.GetStatsAsync(cancellationToken);
         return Ok(
             new InvoiceStatsDto
             {

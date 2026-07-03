@@ -10,9 +10,13 @@ public interface IChatService
 {
     Task<ChatMessageResult> SendMessageAsync(
         ChatMessageRequest request,
-        Guid userId,
+        Guid? userId,
         CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ChatHistoryMessage>> GetHistoryAsync(
+        string sessionId,
+        Guid? userId,
+        CancellationToken cancellationToken = default);
+    Task AttachSessionToUserAsync(
         string sessionId,
         Guid userId,
         CancellationToken cancellationToken = default);
@@ -39,7 +43,7 @@ public sealed class ChatService(
 
     public async Task<ChatMessageResult> SendMessageAsync(
         ChatMessageRequest request,
-        Guid userId,
+        Guid? userId,
         CancellationToken cancellationToken = default)
     {
         var sessionToken = request.SessionId.Trim();
@@ -75,7 +79,11 @@ public sealed class ChatService(
             CreatedAt = DateTime.UtcNow,
         });
 
-        var user = await userRepository.GetByIdAsync(userId, cancellationToken);
+        User? user = null;
+        if (userId is not null)
+        {
+            user = await userRepository.GetByIdAsync(userId.Value, cancellationToken);
+        }
 
         var result = await chatbotGateway.SendMessageAsync(
             new ChatMessageRequest
@@ -107,7 +115,7 @@ public sealed class ChatService(
 
     public async Task<IReadOnlyList<ChatHistoryMessage>> GetHistoryAsync(
         string sessionId,
-        Guid userId,
+        Guid? userId,
         CancellationToken cancellationToken = default)
     {
         var session = await chatSessionRepository.GetByTokenAsync(sessionId.Trim(), cancellationToken);
@@ -116,10 +124,7 @@ public sealed class ChatService(
             return [];
         }
 
-        if (session.UserId is not null && session.UserId != userId)
-        {
-            throw new UnauthorizedAccessException("No tiene acceso a esta sesión de chat.");
-        }
+        EnsureHistoryAccess(session, userId);
 
         var messages = await chatSessionRepository.GetMessagesAsync(session.Id, cancellationToken);
         return messages
@@ -145,8 +150,36 @@ public sealed class ChatService(
         };
     }
 
-    private static void EnsureSessionAccess(ChatSession session, Guid userId)
+    public async Task AttachSessionToUserAsync(
+        string sessionId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
     {
+        var session = await chatSessionRepository.GetByTokenTrackedAsync(sessionId.Trim(), cancellationToken)
+            ?? throw new KeyNotFoundException("Sesión de chat no encontrada.");
+
+        if (session.UserId is not null && session.UserId != userId)
+        {
+            throw new UnauthorizedAccessException("No tiene acceso a esta sesión de chat.");
+        }
+
+        session.UserId = userId;
+        session.UpdatedAt = DateTime.UtcNow;
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void EnsureSessionAccess(ChatSession session, Guid? userId)
+    {
+        if (userId is null)
+        {
+            if (session.UserId is not null)
+            {
+                throw new UnauthorizedAccessException("Debe iniciar sesión para continuar esta conversación.");
+            }
+
+            return;
+        }
+
         if (session.UserId is null)
         {
             session.UserId = userId;
@@ -154,6 +187,24 @@ public sealed class ChatService(
         }
 
         if (session.UserId != userId)
+        {
+            throw new UnauthorizedAccessException("No tiene acceso a esta sesión de chat.");
+        }
+    }
+
+    private static void EnsureHistoryAccess(ChatSession session, Guid? userId)
+    {
+        if (session.UserId is null)
+        {
+            if (userId is not null)
+            {
+                return;
+            }
+
+            return;
+        }
+
+        if (userId is null || session.UserId != userId)
         {
             throw new UnauthorizedAccessException("No tiene acceso a esta sesión de chat.");
         }

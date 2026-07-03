@@ -52,6 +52,7 @@ public sealed class NotificationService(
                     Message = message,
                     Type = type,
                     SaleId = sale.Id,
+                    InvoiceId = sale.Invoice?.Id,
                     IsRead = false,
                     CreatedAt = now,
                 });
@@ -78,6 +79,7 @@ public sealed class NotificationService(
                     Message = n.Message,
                     Type = n.Type,
                     SaleId = n.SaleId,
+                    InvoiceId = n.InvoiceId,
                     IsRead = n.IsRead,
                     CreatedAt = n.CreatedAt.ToString("O"),
                 })
@@ -104,6 +106,9 @@ public sealed class NotificationService(
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }
     }
+
+    public Task ClearAllForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        notificationRepository.DeleteAllForUserAsync(userId, cancellationToken);
 
     private async Task<IReadOnlyList<User>> ResolveCustomerRecipientsAsync(
         Sale sale,
@@ -137,6 +142,10 @@ public sealed class NotificationService(
         FulfillmentStatus status,
         FulfillmentNotificationRecipient recipient) => (status, recipient) switch
     {
+        (FulfillmentStatus.Preparing, FulfillmentNotificationRecipient.Customer) => (
+            "Pedido en preparación",
+            $"Tu pedido {orderNumber} está en preparación. Te avisaremos cuando sea enviado.",
+            "order_preparing"),
         (FulfillmentStatus.Shipped, FulfillmentNotificationRecipient.Customer) => (
             "Pedido enviado",
             $"Tu pedido {orderNumber} fue enviado y está en camino.",

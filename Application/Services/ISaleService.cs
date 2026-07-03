@@ -17,5 +17,6 @@ public interface ISaleService
         string? sessionId = null,
         string? deliveryAddress = null,
         string? deliveryCity = null,
+        bool saveDeliveryAddress = false,
         CancellationToken cancellationToken = default);
 }

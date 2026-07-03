@@ -21,6 +21,7 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
         ProductStatus? status,
         int page,
         int pageSize,
+        bool availableForSaleOnly = false,
         CancellationToken cancellationToken = default)
     {
         var dbQuery = BaseQuery();
@@ -40,6 +41,13 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
         if (status is not null)
         {
             dbQuery = dbQuery.Where(p => p.Status == status);
+        }
+
+        if (availableForSaleOnly)
+        {
+            dbQuery = dbQuery
+                .Where(p => p.Status == ProductStatus.Active)
+                .Where(p => p.Inventories.Any(i => i.CurrentStock > 0));
         }
 
         var totalCount = await dbQuery.CountAsync(cancellationToken);

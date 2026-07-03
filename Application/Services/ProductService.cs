@@ -25,7 +25,14 @@ public sealed class ProductService(
             status = parsedStatus;
         }
 
-        return productRepository.GetPagedAsync(query.Query, query.Category, status, page, pageSize, cancellationToken);
+        return productRepository.GetPagedAsync(
+            query.Query,
+            query.Category,
+            status,
+            page,
+            pageSize,
+            query.AvailableForSaleOnly,
+            cancellationToken);
     }
 
     public async Task<ProductStatsModel> GetStatsAsync(CancellationToken cancellationToken = default)
@@ -228,10 +235,10 @@ public sealed class ProductService(
             throw new InvalidOperationException("Estado inválido. Valores permitidos: active, inactive, out_of_stock, archived.");
         }
 
-        entity.Status = parsedStatus;
-        entity.UpdatedAt = DateTime.UtcNow;
-        if (parsedStatus == ProductStatus.OutOfStock)
+        var stock = entity.GetStock();
+        if (parsedStatus == ProductStatus.OutOfStock || stock <= 0)
         {
+            entity.Status = ProductStatus.OutOfStock;
             var inventory = entity.GetDefaultInventory();
             if (inventory is not null)
             {
@@ -239,7 +246,12 @@ public sealed class ProductService(
                 inventory.UpdatedAt = DateTime.UtcNow;
             }
         }
+        else
+        {
+            entity.Status = parsedStatus;
+        }
 
+        entity.UpdatedAt = DateTime.UtcNow;
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return entity;
     }

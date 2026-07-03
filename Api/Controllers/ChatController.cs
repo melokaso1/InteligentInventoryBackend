@@ -8,21 +8,16 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
-[Authorize]
 [ApiController]
 [Route("api/chat")]
 public sealed class ChatController(IChatService chatService, IChatbotGateway chatbotGateway) : ControllerBase
 {
+    [AllowAnonymous]
     [HttpPost("message")]
     public async Task<ActionResult<ChatMessageResponseDto>> SendMessage(
         [FromBody] ChatMessageRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        if (!TryGetUserId(out var userId))
-        {
-            return Unauthorized();
-        }
-
         try
         {
             var result = await chatService.SendMessageAsync(
@@ -31,7 +26,7 @@ public sealed class ChatController(IChatService chatService, IChatbotGateway cha
                     SessionId = request.SessionId,
                     Message = request.Message,
                 },
-                userId,
+                TryGetOptionalUserId(),
                 cancellationToken);
 
             return Ok(ToDto(result));
@@ -46,6 +41,7 @@ public sealed class ChatController(IChatService chatService, IChatbotGateway cha
         }
     }
 
+    [AllowAnonymous]
     [HttpGet("health")]
     public async Task<IActionResult> GetHealth(CancellationToken cancellationToken = default)
     {
@@ -64,19 +60,15 @@ public sealed class ChatController(IChatService chatService, IChatbotGateway cha
         });
     }
 
+    [AllowAnonymous]
     [HttpGet("sessions/{token}/history")]
     public async Task<ActionResult<IReadOnlyList<ChatHistoryMessageDto>>> GetHistory(
         string token,
         CancellationToken cancellationToken = default)
     {
-        if (!TryGetUserId(out var userId))
-        {
-            return Unauthorized();
-        }
-
         try
         {
-            var history = await chatService.GetHistoryAsync(token, userId, cancellationToken);
+            var history = await chatService.GetHistoryAsync(token, TryGetOptionalUserId(), cancellationToken);
             return Ok(history.Select(h => new ChatHistoryMessageDto
             {
                 SenderType = h.SenderType,
@@ -91,10 +83,47 @@ public sealed class ChatController(IChatService chatService, IChatbotGateway cha
         }
     }
 
+    [Authorize]
+    [HttpPost("sessions/attach")]
+    public async Task<IActionResult> AttachSession(
+        [FromBody] AttachChatSessionRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SessionId))
+        {
+            return BadRequest(new { message = "El identificador de sesión es obligatorio." });
+        }
+
+        try
+        {
+            await chatService.AttachSessionToUserAsync(request.SessionId, userId, cancellationToken);
+            return Ok(new { message = "Sesión vinculada correctamente." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+    }
+
     private bool TryGetUserId(out Guid userId)
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(claim, out userId);
+    }
+
+    private Guid? TryGetOptionalUserId()
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out var userId) ? userId : null;
     }
 
     private static ChatMessageResponseDto ToDto(ChatMessageResult result) =>

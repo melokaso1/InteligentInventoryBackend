@@ -192,6 +192,20 @@ public sealed class SaleService(
                 MeasureUnit = line.MeasureUnit,
             })
             .ToList();
+
+        foreach (var product in products.Values)
+        {
+            if (product.Status is ProductStatus.Inactive or ProductStatus.Archived or ProductStatus.OutOfStock)
+            {
+                throw new InvalidOperationException($"El producto {product.Code} no está disponible para venta.");
+            }
+
+            if (product.GetStock() <= 0)
+            {
+                throw new InvalidOperationException($"El producto {product.Code} no tiene stock disponible.");
+            }
+        }
+
         inventoryStockService.ValidateSufficientStock(deductionLines);
 
         var customer = await customerRepository.GetOrCreateAsync(
@@ -314,6 +328,7 @@ public sealed class SaleService(
         string? sessionId = null,
         string? deliveryAddress = null,
         string? deliveryCity = null,
+        bool saveDeliveryAddress = false,
         CancellationToken cancellationToken = default)
     {
         if (lineItems.Count == 0)
@@ -336,9 +351,14 @@ public sealed class SaleService(
                 throw new InvalidOperationException("Producto no encontrado.");
             }
 
-            if (product.Status is ProductStatus.Inactive or ProductStatus.Archived)
+            if (product.Status is ProductStatus.Inactive or ProductStatus.Archived or ProductStatus.OutOfStock)
             {
                 throw new InvalidOperationException($"El producto {product.Code} no está disponible para venta.");
+            }
+
+            if (product.GetStock() <= 0)
+            {
+                throw new InvalidOperationException($"El producto {product.Code} no tiene stock disponible.");
             }
 
             var saleQuantity = SaleMeasureUnitExtensions.ResolveSaleQuantity(
@@ -364,6 +384,11 @@ public sealed class SaleService(
         if (!string.IsNullOrWhiteSpace(sessionId))
         {
             chatSession = await chatSessionRepository.GetByTokenTrackedAsync(sessionId.Trim(), cancellationToken);
+            if (chatSession is null || chatSession.UserId is null)
+            {
+                throw new InvalidOperationException(
+                    "Debe iniciar sesión para completar el pedido. Vuelve al chat e inicia sesión antes de confirmar.");
+            }
         }
 
         Sale? sale = null;
@@ -391,6 +416,7 @@ public sealed class SaleService(
                     PreparingSince = now,
                     ChatSessionId = chatSession?.Id,
                     ChatSession = chatSession,
+                    CreatedByUserId = chatSession?.UserId,
                     CreatedAt = now,
                 };
 
@@ -454,6 +480,17 @@ public sealed class SaleService(
                 movementRepository.AddRange(movements.ToList());
                 saleRepository.Add(sale);
                 invoiceRepository.Add(invoice);
+
+                if (saveDeliveryAddress)
+                {
+                    customer.SavedDeliveryAddress = string.IsNullOrWhiteSpace(deliveryAddress)
+                        ? null
+                        : deliveryAddress.Trim();
+                    customer.SavedDeliveryCity = string.IsNullOrWhiteSpace(deliveryCity)
+                        ? null
+                        : deliveryCity.Trim();
+                }
+
                 await unitOfWork.SaveChangesAsync(ct);
             },
             cancellationToken);

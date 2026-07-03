@@ -21,7 +21,7 @@ public static class DatabaseSeeder
 
         await SeedWarehousesAsync(context, logger, cancellationToken);
         await QaCatalogCleanup.RemoveLegacyDemoClienteDataAsync(context, logger, cancellationToken);
-        await SeedUsersAsync(scope.ServiceProvider, context, logger, cancellationToken);
+        await EnsureAdminUserAsync(scope.ServiceProvider, context, logger, cancellationToken);
         await QaCatalogCleanup.RemoveLegacyQaDataAsync(context, logger, cancellationToken);
 
         var hadProducts = await context.Products.AnyAsync(cancellationToken);
@@ -108,44 +108,104 @@ public static class DatabaseSeeder
         logger.LogInformation("Almacenes sembrados: Central Bogotá, Almacén Norte, Bodega Sur.");
     }
 
-    private static async Task SeedUsersAsync(
+    private static async Task EnsureAdminUserAsync(
         IServiceProvider services,
         AppDbContext context,
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        if (await context.Users.AnyAsync(cancellationToken))
+        var passwordHasher = services.GetRequiredService<IPasswordHasher>();
+        var customerRepository = services.GetRequiredService<ICustomerRepository>();
+        var adminEmail = UserSeedData.AdminEmail.ToLowerInvariant();
+        var now = DateTime.UtcNow;
+
+        var admin = await context.Users
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == adminEmail, cancellationToken);
+
+        if (admin is null)
         {
+            var adminCustomer = await customerRepository.GetOrCreateAsync(
+                UserSeedData.AdminFullName,
+                UserSeedData.AdminEmail,
+                cancellationToken);
+
+            context.Users.Add(
+                new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = adminEmail,
+                    FullName = UserSeedData.AdminFullName,
+                    PasswordHash = passwordHasher.Hash(UserSeedData.AdminPassword),
+                    RoleId = RoleIds.Admin,
+                    CustomerId = adminCustomer.Id,
+                    IsActive = true,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                });
+
+            await context.SaveChangesAsync(cancellationToken);
+            logger.LogInformation(
+                "Usuario administrador sembrado: {AdminEmail} ({AdminName}).",
+                UserSeedData.AdminEmail,
+                UserSeedData.AdminFullName);
             return;
         }
 
-        var passwordHasher = services.GetRequiredService<IPasswordHasher>();
-        var customerRepository = services.GetRequiredService<ICustomerRepository>();
-        var now = DateTime.UtcNow;
+        var needsSave = false;
 
-        var adminCustomer = await customerRepository.GetOrCreateAsync(
-            UserSeedData.AdminFullName,
-            UserSeedData.AdminEmail,
-            cancellationToken);
+        if (!passwordHasher.Verify(UserSeedData.AdminPassword, admin.PasswordHash))
+        {
+            admin.PasswordHash = passwordHasher.Hash(UserSeedData.AdminPassword);
+            needsSave = true;
+            logger.LogInformation(
+                "Contraseña del administrador sincronizada con el seed ({AdminEmail}).",
+                UserSeedData.AdminEmail);
+        }
 
-        context.Users.Add(
-            new User
+        if (admin.RoleId != RoleIds.Admin)
+        {
+            admin.RoleId = RoleIds.Admin;
+            needsSave = true;
+        }
+
+        if (!admin.IsActive)
+        {
+            admin.IsActive = true;
+            needsSave = true;
+        }
+
+        if (admin.Email != adminEmail)
+        {
+            admin.Email = adminEmail;
+            needsSave = true;
+        }
+
+        if (!string.Equals(admin.FullName, UserSeedData.AdminFullName, StringComparison.Ordinal))
+        {
+            admin.FullName = UserSeedData.AdminFullName;
+            needsSave = true;
+            logger.LogInformation(
+                "Nombre del administrador sincronizado con el seed ({AdminEmail}).",
+                UserSeedData.AdminEmail);
+        }
+
+        if (admin.CustomerId.HasValue)
+        {
+            var adminCustomer = await context.Customers
+                .FirstOrDefaultAsync(c => c.Id == admin.CustomerId.Value, cancellationToken);
+
+            if (adminCustomer is not null
+                && !string.Equals(adminCustomer.FullName, UserSeedData.AdminFullName, StringComparison.Ordinal))
             {
-                Id = Guid.NewGuid(),
-                Email = UserSeedData.AdminEmail,
-                FullName = UserSeedData.AdminFullName,
-                PasswordHash = passwordHasher.Hash(UserSeedData.AdminPassword),
-                RoleId = RoleIds.Admin,
-                CustomerId = adminCustomer.Id,
-                IsActive = true,
-                CreatedAt = now,
-                UpdatedAt = now,
-            });
+                adminCustomer.FullName = UserSeedData.AdminFullName;
+                needsSave = true;
+            }
+        }
 
-        await context.SaveChangesAsync(cancellationToken);
-        logger.LogInformation(
-            "Usuario administrador sembrado: {AdminEmail} ({AdminName}).",
-            UserSeedData.AdminEmail,
-            UserSeedData.AdminFullName);
+        if (needsSave)
+        {
+            admin.UpdatedAt = now;
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 }
