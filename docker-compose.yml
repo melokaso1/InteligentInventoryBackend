@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: elplonsazo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: elplonsazo
+      POSTGRES_PASSWORD: elplonsazo_dev
+      POSTGRES_DB: elplonsazo
+    ports:
+      - "5433:5432"
+    volumes:
+      - elplonsazo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elplonsazo -d elplonsazo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  elplonsazo_pgdata:
