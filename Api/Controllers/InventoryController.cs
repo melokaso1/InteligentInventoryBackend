@@ -86,23 +86,24 @@ public sealed class InventoryController(IInventoryService inventoryService) : Co
     }
 
     [HttpPost("adjustments")]
-    public async Task<ActionResult<StockMovementDto>> CreateAdjustment(
+    public async Task<ActionResult<AdjustmentResultDto>> CreateAdjustment(
         [FromBody] AdjustmentRequest request,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var movement = await inventoryService.CreateAdjustmentAsync(
+            var result = await inventoryService.CreateAdjustmentAsync(
                 new AdjustmentModel
                 {
                     ProductId = request.ProductId,
                     ProductCode = request.ProductCode,
                     QuantityChange = request.QuantityChange,
+                    MaxStock = request.MaxStock,
                     Reason = request.Reason,
                     Detail = request.Detail,
                 },
                 cancellationToken);
-            return Ok(movement.ToStockMovementDto());
+            return Ok(result.ToAdjustmentResultDto());
         }
         catch (KeyNotFoundException ex)
         {

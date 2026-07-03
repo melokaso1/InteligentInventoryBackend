@@ -14,6 +14,9 @@ public sealed class CustomerRepository(AppDbContext context) : ICustomerReposito
     public Task<Customer?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         context.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
+    public Task<Customer?> GetByIdTrackedAsync(Guid id, CancellationToken cancellationToken = default) =>
+        context.Customers.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+
     public async Task<Customer> GetOrCreateAsync(
         string fullName,
         string email,
@@ -26,6 +29,12 @@ public sealed class CustomerRepository(AppDbContext context) : ICustomerReposito
 
         if (existing is not null)
         {
+            var trimmedName = fullName.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmedName) && existing.FullName != trimmedName)
+            {
+                existing.FullName = trimmedName;
+            }
+
             return existing;
         }
 

@@ -1,21 +1,28 @@
 using System.Globalization;
+using Api.Caching;
 using Api.Dtos;
 using Application.Models;
 using Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Api.Controllers;
 
 [Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/dashboard")]
-public sealed class DashboardController(IDashboardService dashboardService) : ControllerBase
+public sealed class DashboardController(IDashboardService dashboardService, IMemoryCache cache) : ControllerBase
 {
     [HttpGet("kpis")]
     public async Task<ActionResult<List<DashboardKpiDto>>> GetKpis(CancellationToken cancellationToken = default)
     {
-        var data = await dashboardService.GetKpisAsync(cancellationToken);
+        var data = await EndpointCache.GetOrCreateAsync(
+            cache,
+            "dashboard:kpis",
+            async ct => await dashboardService.GetKpisAsync(ct),
+            cancellationToken);
+
         return Ok(
             data.Select(
                 x => new DashboardKpiDto
@@ -34,7 +41,11 @@ public sealed class DashboardController(IDashboardService dashboardService) : Co
     [HttpGet("low-stock")]
     public async Task<ActionResult<List<LowStockItemDto>>> GetLowStock(CancellationToken cancellationToken = default)
     {
-        var items = (await dashboardService.GetLowStockAsync(cancellationToken))
+        var items = (await EndpointCache.GetOrCreateAsync(
+                cache,
+                "dashboard:low-stock",
+                async ct => await dashboardService.GetLowStockAsync(ct),
+                cancellationToken))
             .Select(
                 x => new LowStockItemDto
                 {
@@ -55,7 +66,11 @@ public sealed class DashboardController(IDashboardService dashboardService) : Co
         [FromQuery] int limit = 20,
         CancellationToken cancellationToken = default)
     {
-        var result = (await dashboardService.GetActivityAsync(limit, cancellationToken))
+        var result = (await EndpointCache.GetOrCreateAsync(
+                cache,
+                $"dashboard:activity:{limit}",
+                async ct => await dashboardService.GetActivityAsync(limit, ct),
+                cancellationToken))
             .Select(
                 x => new ActivityItemDto
                 {

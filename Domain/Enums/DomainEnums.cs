@@ -53,3 +53,10 @@ public enum SaleMeasureUnit
     Milliliter = 4,
     Liter = 5,
 }
+
+public enum FulfillmentStatus
+{
+    Preparing,
+    Shipped,
+    Delivered,
+}

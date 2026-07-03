@@ -15,12 +15,11 @@ public sealed class DashboardService(
 {
     public async Task<List<DashboardKpiModel>> GetKpisAsync(CancellationToken cancellationToken = default)
     {
-        var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
-        var tomorrow = today.AddDays(1);
+        var (todayStartUtc, tomorrowStartUtc) = ColombiaTimeHelper.GetUtcRangeForColombiaToday();
         var culture = CultureInfo.GetCultureInfo("es-CO");
 
         var productCount = await productRepository.CountAsync(cancellationToken);
-        var todaySales = await saleRepository.SumTotalByDateRangeAsync(today, tomorrow, cancellationToken);
+        var todaySales = await saleRepository.SumTotalByDateRangeAsync(todayStartUtc, tomorrowStartUtc, cancellationToken);
         var allProducts = await productRepository.GetAllAsync(cancellationToken);
         var lowStockCount = allProducts.Count(
             p => StockLevelHelper.GetStockLevel(p.GetStock(), p.GetMaxStock()).StockLevel is "critical" or "low");

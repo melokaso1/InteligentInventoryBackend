@@ -9,6 +9,10 @@ public sealed class SaleDto
     public string Date { get; set; } = string.Empty;
     public decimal Total { get; set; }
     public string Status { get; set; } = "pending";
+    public string FulfillmentStatus { get; set; } = "preparing";
+    public string? PreparingSince { get; set; }
+    public string? ShippedAt { get; set; }
+    public string? DeliveredAt { get; set; }
     public string? TaxId { get; set; }
     public List<SaleLineItemDto> LineItems { get; set; } = [];
     public decimal Subtotal { get; set; }
@@ -16,6 +20,8 @@ public sealed class SaleDto
     public decimal GrandTotal { get; set; }
     public string OrderNumber { get; set; } = string.Empty;
     public string? InvoiceNumber { get; set; }
+    public string? DeliveryAddress { get; set; }
+    public string? DeliveryCity { get; set; }
 }
 
 public sealed class SaleLineItemDto
@@ -43,7 +49,7 @@ public sealed class CreateSaleRequest
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerEmail { get; set; } = string.Empty;
     public string Origin { get; set; } = "manual";
-    public string Status { get; set; } = "confirmed";
+    public string Status { get; set; } = "pending";
     public List<CreateSaleLineItemRequest> LineItems { get; set; } = [];
 }
 
@@ -70,6 +76,8 @@ public sealed class CreateSaleFromChatbotRequest
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerEmail { get; set; } = string.Empty;
     public string? SessionId { get; set; }
+    public string? DeliveryAddress { get; set; }
+    public string? DeliveryCity { get; set; }
 }
 
 public sealed class CreateSaleFromChatbotResponse

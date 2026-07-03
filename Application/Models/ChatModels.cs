@@ -5,6 +5,8 @@ public sealed class ChatMessageRequest
     public string SessionId { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public string? StateJson { get; set; }
+    public string? CustomerName { get; set; }
+    public string? CustomerEmail { get; set; }
 }
 
 public sealed class ChatOperationSummary

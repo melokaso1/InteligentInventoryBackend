@@ -101,6 +101,40 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
     }
 
     [Authorize]
+    [HttpPut("profile")]
+    public async Task<ActionResult<AuthResponseDto>> UpdateProfile(
+        [FromBody] UpdateProfileRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId is null || !Guid.TryParse(userId, out var id))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var result = await authService.UpdateProfileAsync(
+                new UpdateProfileModel
+                {
+                    UserId = id,
+                    Name = request.Name,
+                },
+                cancellationToken);
+
+            return Ok(ToDto(result));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ErrorPayload(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ErrorPayload(ex.Message));
+        }
+    }
+
+    [Authorize]
     [HttpGet("me")]
     public ActionResult<AuthUserDto> Me()
     {

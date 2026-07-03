@@ -17,6 +17,8 @@ public sealed class InvoiceDto
     public string InvoiceNumber { get; set; } = string.Empty;
     public Guid? SaleId { get; set; }
     public string Source { get; set; } = "manual";
+    public string? DeliveryAddress { get; set; }
+    public string? DeliveryCity { get; set; }
 }
 
 public sealed class CreateManualInvoiceRequest

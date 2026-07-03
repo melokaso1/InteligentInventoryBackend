@@ -8,6 +8,7 @@ public sealed class InventoryItemDto
     public string Category { get; set; } = string.Empty;
     public string Warehouse { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
+    public decimal MaxStock { get; set; }
     public decimal UnitPrice { get; set; }
     public string StockLevel { get; set; } = "high";
     public decimal StockPercent { get; set; }
@@ -38,6 +39,20 @@ public sealed class AdjustmentRequest
     public Guid? ProductId { get; set; }
     public string? ProductCode { get; set; }
     public decimal QuantityChange { get; set; }
+    public decimal? MaxStock { get; set; }
     public string Reason { get; set; } = "Ajuste manual";
     public string Detail { get; set; } = string.Empty;
+}
+
+public sealed class AdjustmentResultDto
+{
+    public Guid Id { get; set; }
+    public string Type { get; set; } = "adjustment";
+    public string Sku { get; set; } = string.Empty;
+    public string Change { get; set; } = "0";
+    public string Timestamp { get; set; } = string.Empty;
+    public string Detail { get; set; } = string.Empty;
+    public decimal ResultingStock { get; set; }
+    public decimal MaxStock { get; set; }
+    public bool StockCapped { get; set; }
 }

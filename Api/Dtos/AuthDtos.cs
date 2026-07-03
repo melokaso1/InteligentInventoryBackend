@@ -51,3 +51,9 @@ public sealed class ChangePasswordRequestDto
     [MinLength(8)]
     public string NewPassword { get; set; } = string.Empty;
 }
+
+public sealed class UpdateProfileRequestDto
+{
+    [Required]
+    public string Name { get; set; } = string.Empty;
+}

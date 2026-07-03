@@ -16,7 +16,7 @@ public sealed class SaleService(
     IInventoryStockService inventoryStockService,
     IUnitOfWork unitOfWork) : ISaleService
 {
-    private const decimal TaxRate = 0.08m;
+    private const decimal TaxRate = 0.19m;
     private const int MaxPageSize = 200;
     private const int MaxExportPageSize = 500;
 
@@ -83,16 +83,74 @@ public sealed class SaleService(
         };
     }
 
-    public async Task<SaleMetricsModel> GetMetricsAsync(CancellationToken cancellationToken = default)
+    public async Task<SaleMetricsModel> GetMetricsAsync(
+        SalesQueryModel? query = null,
+        CancellationToken cancellationToken = default)
     {
+        var hasFilters = query is not null && (
+            query.From.HasValue ||
+            query.To.HasValue ||
+            !string.IsNullOrWhiteSpace(query.Origin) ||
+            !string.IsNullOrWhiteSpace(query.Status));
+
+        if (!hasFilters)
+        {
+            return new SaleMetricsModel
+            {
+                TotalSales = await saleRepository.CountAsync(cancellationToken),
+                TotalRevenue = await saleRepository.SumTotalAsync(cancellationToken),
+                ChatbotSales = await saleRepository.CountByOriginAsync(SaleOrigin.Chatbot, cancellationToken),
+                ManualSales = await saleRepository.CountByOriginAsync(SaleOrigin.Manual, cancellationToken),
+                PendingSales = await saleRepository.CountByStatusAsync(SaleStatus.Pending, cancellationToken),
+                InvoicedSales = await saleRepository.CountByStatusAsync(SaleStatus.Invoiced, cancellationToken),
+            };
+        }
+
+        var origin = ParseSaleOrigin(query!.Origin);
+        var status = ParseSaleStatus(query.Status);
+
         return new SaleMetricsModel
         {
-            TotalSales = await saleRepository.CountAsync(cancellationToken),
-            TotalRevenue = await saleRepository.SumTotalAsync(cancellationToken),
-            ChatbotSales = await saleRepository.CountByOriginAsync(SaleOrigin.Chatbot, cancellationToken),
-            ManualSales = await saleRepository.CountByOriginAsync(SaleOrigin.Manual, cancellationToken),
-            PendingSales = await saleRepository.CountByStatusAsync(SaleStatus.Pending, cancellationToken),
-            InvoicedSales = await saleRepository.CountByStatusAsync(SaleStatus.Invoiced, cancellationToken),
+            TotalSales = await saleRepository.CountFilteredAsync(
+                query.From,
+                query.To,
+                origin,
+                status,
+                cancellationToken),
+            TotalRevenue = await saleRepository.SumTotalFilteredAsync(
+                query.From,
+                query.To,
+                origin,
+                status,
+                cancellationToken),
+            ChatbotSales = origin is SaleOrigin.Manual
+                ? 0
+                : await saleRepository.CountFilteredAsync(
+                    query.From,
+                    query.To,
+                    SaleOrigin.Chatbot,
+                    status,
+                    cancellationToken),
+            ManualSales = origin is SaleOrigin.Chatbot
+                ? 0
+                : await saleRepository.CountFilteredAsync(
+                    query.From,
+                    query.To,
+                    SaleOrigin.Manual,
+                    status,
+                    cancellationToken),
+            PendingSales = await saleRepository.CountFilteredAsync(
+                query.From,
+                query.To,
+                origin,
+                SaleStatus.Pending,
+                cancellationToken),
+            InvoicedSales = await saleRepository.CountFilteredAsync(
+                query.From,
+                query.To,
+                origin,
+                SaleStatus.Invoiced,
+                cancellationToken),
         };
     }
 
@@ -109,7 +167,15 @@ public sealed class SaleService(
         var origin = ParseSaleOrigin(request.Origin)
             ?? throw new InvalidOperationException("Origen inválido. Valores permitidos: manual, chatbot.");
         var status = ParseSaleStatus(request.Status)
-            ?? throw new InvalidOperationException("Estado inválido. Valores permitidos: invoiced, pending, confirmed, cancelled.");
+            ?? (origin == SaleOrigin.Manual ? SaleStatus.Pending : throw new InvalidOperationException("Estado inválido. Valores permitidos: invoiced, pending, confirmed, cancelled."));
+
+        var customerName = string.IsNullOrWhiteSpace(request.CustomerName)
+            ? "Cliente mostrador"
+            : request.CustomerName.Trim();
+
+        var customerEmail = string.IsNullOrWhiteSpace(request.CustomerEmail)
+            ? $"manual-{Guid.NewGuid():N}@elplonsazo.local"
+            : request.CustomerEmail.Trim();
 
         var productIds = request.LineItems.Select(li => li.ProductId).Distinct().ToList();
         var products = await productRepository.GetByIdsAsync(productIds, cancellationToken);
@@ -129,8 +195,8 @@ public sealed class SaleService(
         inventoryStockService.ValidateSufficientStock(deductionLines);
 
         var customer = await customerRepository.GetOrCreateAsync(
-            request.CustomerName,
-            request.CustomerEmail,
+            customerName,
+            customerEmail,
             cancellationToken);
 
         Sale? created = null;
@@ -156,7 +222,7 @@ public sealed class SaleService(
                 var movements = await inventoryStockService.DeductStockAsync(
                     deductionLines,
                     "Venta manual",
-                    $"Pedido {orderNumber}",
+                    $"Pedido {orderNumber} — {customer.FullName}",
                     now,
                     ct);
 
@@ -246,6 +312,8 @@ public sealed class SaleService(
         string customerName,
         string customerEmail,
         string? sessionId = null,
+        string? deliveryAddress = null,
+        string? deliveryCity = null,
         CancellationToken cancellationToken = default)
     {
         if (lineItems.Count == 0)
@@ -315,8 +383,12 @@ public sealed class SaleService(
                     Customer = customer,
                     CustomerName = customer.FullName,
                     CustomerEmail = customer.Email,
+                    DeliveryAddress = string.IsNullOrWhiteSpace(deliveryAddress) ? null : deliveryAddress.Trim(),
+                    DeliveryCity = string.IsNullOrWhiteSpace(deliveryCity) ? null : deliveryCity.Trim(),
                     Origin = SaleOrigin.Chatbot,
                     Status = SaleStatus.Invoiced,
+                    FulfillmentStatus = FulfillmentStatus.Preparing,
+                    PreparingSince = now,
                     ChatSessionId = chatSession?.Id,
                     ChatSession = chatSession,
                     CreatedAt = now,
@@ -325,7 +397,7 @@ public sealed class SaleService(
                 var movements = await inventoryStockService.DeductStockAsync(
                     deductionLines,
                     "Venta chatbot",
-                    $"Pedido {orderNumber}",
+                    $"Pedido {orderNumber} — {customer.FullName}",
                     now,
                     ct);
 

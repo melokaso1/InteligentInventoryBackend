@@ -1,4 +1,5 @@
 using Application.Abstractions;
+using Application.Common;
 using Application.Models;
 using Domain.Constants;
 using Domain.Entities;
@@ -18,7 +19,13 @@ public sealed class ProductService(
     {
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, 200);
-        return productRepository.GetPagedAsync(query.Query, query.Category, page, pageSize, cancellationToken);
+        ProductStatus? status = null;
+        if (!string.IsNullOrWhiteSpace(query.Status) && TryParseProductStatus(query.Status, out var parsedStatus))
+        {
+            status = parsedStatus;
+        }
+
+        return productRepository.GetPagedAsync(query.Query, query.Category, status, page, pageSize, cancellationToken);
     }
 
     public async Task<ProductStatsModel> GetStatsAsync(CancellationToken cancellationToken = default)
@@ -59,7 +66,8 @@ public sealed class ProductService(
         }
 
         var category = await categoryRepository.GetOrCreateAsync(request.Category, cancellationToken);
-        var status = ResolveStatus(request.Status, request.Stock);
+        var clampedStock = StockLevelHelper.ClampStock(request.Stock, request.MaxStock);
+        var status = ResolveStatus(request.Status, clampedStock);
         var now = DateTime.UtcNow;
         var warehouse = await ResolveWarehouseAsync(request.Warehouse, cancellationToken);
 
@@ -82,7 +90,7 @@ public sealed class ProductService(
             Id = Guid.NewGuid(),
             ProductId = entity.Id,
             WarehouseId = warehouse.Id,
-            CurrentStock = request.Stock,
+            CurrentStock = clampedStock,
             MinStock = Math.Max(1, request.MaxStock / 4),
             MaxStock = request.MaxStock,
             UpdatedAt = now,
@@ -109,7 +117,8 @@ public sealed class ProductService(
         }
 
         var category = await categoryRepository.GetOrCreateAsync(request.Category, cancellationToken);
-        var status = ResolveStatus(request.Status, request.Stock);
+        var clampedStock = StockLevelHelper.ClampStock(request.Stock, request.MaxStock);
+        var status = ResolveStatus(request.Status, clampedStock);
         var warehouse = await ResolveWarehouseAsync(request.Warehouse, cancellationToken);
         var inventory = entity.Inventories.FirstOrDefault(i => i.WarehouseId == warehouse.Id)
             ?? entity.GetDefaultInventory();
@@ -131,7 +140,7 @@ public sealed class ProductService(
             inventory.WarehouseId = warehouse.Id;
         }
 
-        inventory.CurrentStock = request.Stock;
+        inventory.CurrentStock = clampedStock;
         inventory.MaxStock = request.MaxStock;
         inventory.MinStock = Math.Max(1, request.MaxStock / 4);
         inventory.UpdatedAt = DateTime.UtcNow;

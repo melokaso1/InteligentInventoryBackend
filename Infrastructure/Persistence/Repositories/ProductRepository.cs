@@ -18,6 +18,7 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
     public async Task<PagedResult<Product>> GetPagedAsync(
         string? query,
         string? category,
+        ProductStatus? status,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -34,6 +35,11 @@ public sealed class ProductRepository(AppDbContext context) : IProductRepository
         {
             var normalized = category.Trim().ToLowerInvariant();
             dbQuery = dbQuery.Where(p => p.Category.Name.ToLower() == normalized);
+        }
+
+        if (status is not null)
+        {
+            dbQuery = dbQuery.Where(p => p.Status == status);
         }
 
         var totalCount = await dbQuery.CountAsync(cancellationToken);

@@ -6,7 +6,13 @@ namespace Application.Abstractions;
 
 public interface IProductRepository
 {
-    Task<PagedResult<Product>> GetPagedAsync(string? query, string? category, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<Product>> GetPagedAsync(
+        string? query,
+        string? category,
+        ProductStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
     Task<List<Product>> GetFilteredAsync(string? query, string? category, string? warehouse, CancellationToken cancellationToken = default);
     Task<List<Product>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<List<Product>> GetAllOrderedByCodeAsync(CancellationToken cancellationToken = default);

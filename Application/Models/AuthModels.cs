@@ -20,6 +20,12 @@ public sealed class ChangePasswordModel
     public string NewPassword { get; set; } = string.Empty;
 }
 
+public sealed class UpdateProfileModel
+{
+    public Guid UserId { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
 public sealed class AuthUserModel
 {
     public Guid Id { get; set; }

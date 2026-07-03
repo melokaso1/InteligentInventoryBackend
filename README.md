@@ -178,7 +178,7 @@ dotnet ef database update --project Infrastructure --startup-project Api
 
 ## Autenticación
 
-Al iniciar la API se crea automáticamente un usuario administrador si no existe:
+Al iniciar la API se crea automáticamente un usuario administrador si la tabla de usuarios está vacía. No hay usuario cliente de demostración; los clientes se registran con `POST /api/auth/register`.
 
 | Campo | Valor |
 |-------|-------|
@@ -202,12 +202,93 @@ Los endpoints de gestión (dashboard, productos, inventario, ventas, facturas) r
 | Dashboard | `GET /api/dashboard/kpis`, `/low-stock`, `/activity` | KPIs y actividad reciente |
 | Productos | `GET/POST/PUT/PATCH/DELETE /api/products` | CRUD + `GET /stats` |
 | Inventario | `GET /api/inventory`, `/stats`, `/movements` | Stock y movimientos |
-| Ventas | `GET/POST /api/sales`, `GET /metrics` | |
+| Ventas | `GET/POST /api/sales`, `GET /metrics` | Incluye `fulfillmentStatus` |
+| Despacho | `GET /api/dispatch`, `PATCH /api/dispatch/{id}/status` | Solo Admin; estados: `preparing`, `shipped`, `delivered` |
+| Mis pedidos | `GET /api/my-orders`, `POST /api/my-orders/{id}/confirm-delivery` | Cliente: seguimiento y confirmación de entrega |
+| Notificaciones | `GET /api/notifications`, `PATCH /api/notifications/{id}/read` | Avisos de cambio de estado de despacho |
 | Venta chatbot | `POST /api/sales/from-chatbot` | Transaccional (stock + factura) |
 | Facturas | `GET/POST /api/invoices`, `/stats`, `/{id}/pdf` | |
 | Chat (proxy) | `POST /api/chat/message`, `GET /api/chat/health` | Reenvía al servicio FastAPI |
 
 OpenAPI en Development: `GET /openapi/v1.json`
+
+## Modelo de datos y trazabilidad
+
+### Diagrama ER (despacho y ventas)
+
+```mermaid
+erDiagram
+    User ||--o| Customer : "cliente registrado"
+    Customer ||--o{ Sale : "realiza"
+    User ||--o{ Sale : "crea (admin)"
+    Sale ||--|{ SaleLineItem : "contiene"
+    SaleLineItem }o--|| Product : "referencia"
+    Sale ||--o| Invoice : "genera"
+    Sale {
+        uuid Id
+        string OrderNumber
+        enum Status "pending|confirmed|invoiced|cancelled"
+        enum FulfillmentStatus "preparing|shipped|delivered"
+        enum Origin "manual|chatbot"
+    }
+    Customer {
+        uuid Id
+        string FullName
+        string Email
+    }
+    User {
+        uuid Id
+        string Email
+        int RoleId
+        uuid CustomerId
+    }
+    Notification }o--|| User : "notifica a"
+    Notification }o--o| Sale : "referencia"
+    Notification {
+        uuid Id
+        string Type
+        bool IsRead
+    }
+    Product ||--o{ InventoryMovement : "movimientos"
+    InventoryMovement {
+        uuid Id
+        enum Type "inbound|outbound|adjustment"
+        decimal QuantityChange
+        string Detail
+    }
+    SaleLineItem {
+        uuid ProductId
+        decimal Quantity
+    }
+```
+
+### Estados de despacho (`FulfillmentStatus`)
+
+| Estado API | Etiqueta UI | Descripción |
+|------------|-------------|-------------|
+| `preparing` | Preparando | Pedido confirmado; pendiente de salida del almacén |
+| `shipped` | Enviado | Pedido despachado; el cliente recibe notificación |
+| `delivered` | Entregado | Recepción confirmada (admin o cliente) |
+
+**Transiciones permitidas (admin):**
+
+```
+preparing → shipped → delivered
+preparing → delivered   (entrega directa, sin paso intermedio)
+```
+
+El cliente puede confirmar entrega solo cuando el pedido está en `shipped` (`POST /api/my-orders/{id}/confirm-delivery`).
+
+### Trazabilidad de stock en ventas
+
+Al confirmar una venta (manual o chatbot), `SaleService`:
+
+1. Crea la `Sale` con `FulfillmentStatus = preparing`.
+2. Descuenta stock del `Product` / `Inventory`.
+3. Registra un `InventoryMovement` de tipo `outbound` con detalle del pedido.
+4. Opcionalmente genera `Invoice` vinculada (`SaleId`).
+
+Los cambios de despacho generan `Notification` al usuario cliente asociado vía `Customer → User`.
 
 ## Normalización
 

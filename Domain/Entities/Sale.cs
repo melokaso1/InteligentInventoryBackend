@@ -10,8 +10,14 @@ public class Sale
     public Customer? Customer { get; set; }
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerEmail { get; set; } = string.Empty;
+    public string? DeliveryAddress { get; set; }
+    public string? DeliveryCity { get; set; }
     public SaleOrigin Origin { get; set; }
     public SaleStatus Status { get; set; }
+    public FulfillmentStatus FulfillmentStatus { get; set; } = FulfillmentStatus.Preparing;
+    public DateTime? PreparingSince { get; set; }
+    public DateTime? ShippedAt { get; set; }
+    public DateTime? DeliveredAt { get; set; }
     public Guid? ChatSessionId { get; set; }
     public ChatSession? ChatSession { get; set; }
     public Guid? CreatedByUserId { get; set; }

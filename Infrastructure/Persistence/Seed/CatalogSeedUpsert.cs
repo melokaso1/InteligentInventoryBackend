@@ -6,7 +6,7 @@ namespace Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// Adds missing seed categories and PLZ-* products without wiping existing catalog or stock.
-/// Syncs name/description/category metadata for existing PLZ-* SKUs on every startup.
+/// Syncs name/description/category/price/sale-unit metadata for existing PLZ-* SKUs on every startup.
 /// Safe to run on every startup after migrations.
 /// </summary>
 internal static class CatalogSeedUpsert
@@ -18,6 +18,8 @@ internal static class CatalogSeedUpsert
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
+        await QaCatalogCleanup.RemoveRetiredSeedProductsAsync(context, logger, cancellationToken);
+
         var categoriesAdded = await UpsertCategoriesAsync(context, cancellationToken);
         var productsAdded = await UpsertProductsAsync(context, logger, cancellationToken);
         var productsSynced = await SyncExistingProductsAsync(context, logger, cancellationToken);
@@ -60,7 +62,7 @@ internal static class CatalogSeedUpsert
             return 0;
         }
 
-        var seedProducts = ProductSeedData.Create(categoryByName, warehouseByName);
+        var seedProducts = ProductSeedData.GetAll(categoryByName, warehouseByName);
         var existingCodes = await context.Products
             .Select(p => p.Code.ToUpper())
             .ToListAsync(cancellationToken);
@@ -98,7 +100,7 @@ internal static class CatalogSeedUpsert
             return 0;
         }
 
-        var seedByCode = ProductSeedData.Create(categoryByName, warehouseByName)
+        var seedByCode = ProductSeedData.GetAll(categoryByName, warehouseByName)
             .ToDictionary(p => p.Code.ToUpper(), p => p);
 
         var existing = await context.Products

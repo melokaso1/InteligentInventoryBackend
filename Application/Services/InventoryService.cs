@@ -91,13 +91,8 @@ public sealed class InventoryService(
             cancellationToken);
     }
 
-    public async Task<InventoryMovement> CreateAdjustmentAsync(AdjustmentModel request, CancellationToken cancellationToken = default)
+    public async Task<AdjustmentResultModel> CreateAdjustmentAsync(AdjustmentModel request, CancellationToken cancellationToken = default)
     {
-        if (request.QuantityChange == 0)
-        {
-            throw new InvalidOperationException("El ajuste no puede ser cero.");
-        }
-
         Product? product = null;
         if (request.ProductId.HasValue)
         {
@@ -127,20 +122,46 @@ public sealed class InventoryService(
                 WarehouseId = defaultWarehouse.Id,
                 CurrentStock = 0,
                 MinStock = 0,
-                MaxStock = 100,
+                MaxStock = request.MaxStock ?? 100,
                 UpdatedAt = DateTime.UtcNow,
             };
             inventoryRepository.Add(inventory);
             product.Inventories.Add(inventory);
         }
 
-        var resultingStock = inventory.CurrentStock + request.QuantityChange;
-        if (resultingStock < 0)
+        var previousMaxStock = inventory.MaxStock;
+        var maxStockChanged = false;
+        if (request.MaxStock.HasValue)
         {
-            throw new InvalidOperationException("El ajuste deja el stock en negativo.");
+            if (request.MaxStock.Value < 0)
+            {
+                throw new InvalidOperationException("El límite máximo no puede ser negativo.");
+            }
+
+            maxStockChanged = request.MaxStock.Value != previousMaxStock;
+            inventory.MaxStock = request.MaxStock.Value;
+            inventory.MinStock = Math.Max(1, request.MaxStock.Value / 4);
         }
 
-        inventory.CurrentStock = resultingStock;
+        var targetStock = inventory.CurrentStock + request.QuantityChange;
+        var newStock = StockLevelHelper.ClampStock(targetStock, inventory.MaxStock);
+        var actualChange = newStock - inventory.CurrentStock;
+        var stockCapped = newStock < targetStock;
+        var needsCapOnlyFix = !maxStockChanged
+            && request.QuantityChange == 0
+            && inventory.CurrentStock > inventory.MaxStock;
+
+        if (!maxStockChanged && request.QuantityChange == 0 && !needsCapOnlyFix)
+        {
+            throw new InvalidOperationException("El ajuste no puede ser cero.");
+        }
+
+        if (actualChange == 0 && !maxStockChanged && !needsCapOnlyFix)
+        {
+            throw new InvalidOperationException("El ajuste no puede ser cero.");
+        }
+
+        inventory.CurrentStock = newStock;
         inventory.UpdatedAt = DateTime.UtcNow;
         product.UpdatedAt = DateTime.UtcNow;
 
@@ -153,23 +174,47 @@ public sealed class InventoryService(
             product.Status = ProductStatus.Active;
         }
 
-        var movement = new InventoryMovement
+        InventoryMovement? movement = null;
+        if (actualChange != 0)
         {
-            Id = Guid.NewGuid(),
+            movement = new InventoryMovement
+            {
+                Id = Guid.NewGuid(),
+                ProductId = product.Id,
+                Product = product,
+                InventoryId = inventory.Id,
+                Inventory = inventory,
+                Type = StockMovementType.Adjustment,
+                QuantityChange = actualChange,
+                Reason = string.IsNullOrWhiteSpace(request.Reason) ? "Ajuste manual" : request.Reason.Trim(),
+                Detail = string.IsNullOrWhiteSpace(request.Detail) ? "Ajuste realizado desde API" : request.Detail.Trim(),
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            movementRepository.Add(movement);
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        movement ??= new InventoryMovement
+        {
+            Id = Guid.Empty,
             ProductId = product.Id,
             Product = product,
-            InventoryId = inventory.Id,
-            Inventory = inventory,
             Type = StockMovementType.Adjustment,
-            QuantityChange = request.QuantityChange,
+            QuantityChange = 0,
             Reason = string.IsNullOrWhiteSpace(request.Reason) ? "Ajuste manual" : request.Reason.Trim(),
-            Detail = string.IsNullOrWhiteSpace(request.Detail) ? "Ajuste realizado desde API" : request.Detail.Trim(),
+            Detail = "Límite máximo actualizado",
             CreatedAt = DateTime.UtcNow,
         };
 
-        movementRepository.Add(movement);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return movement;
+        return new AdjustmentResultModel
+        {
+            Movement = movement,
+            ResultingStock = newStock,
+            MaxStock = inventory.MaxStock,
+            StockCapped = stockCapped,
+        };
     }
 
     public Task<List<Product>> GetInventoryForExportAsync(CancellationToken cancellationToken = default) =>

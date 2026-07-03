@@ -8,6 +8,7 @@ namespace Application.Services;
 
 public sealed class AuthService(
     IUserRepository userRepository,
+    ICustomerRepository customerRepository,
     IPasswordHasher passwordHasher,
     ITokenService tokenService,
     IUnitOfWork unitOfWork) : IAuthService
@@ -35,6 +36,12 @@ public sealed class AuthService(
     {
         PasswordValidator.Validate(model.Password);
 
+        var name = model.Name.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new InvalidOperationException("El nombre completo es obligatorio.");
+        }
+
         var email = NormalizeEmail(model.Email);
 
         if (await userRepository.ExistsByEmailAsync(email, cancellationToken))
@@ -42,14 +49,16 @@ public sealed class AuthService(
             throw new InvalidOperationException("Ya existe una cuenta con ese correo electrónico.");
         }
 
+        var customer = await customerRepository.GetOrCreateAsync(name, email, cancellationToken);
         var now = DateTime.UtcNow;
         var user = new User
         {
             Id = Guid.NewGuid(),
-            FullName = model.Name.Trim(),
+            FullName = name,
             Email = email,
             PasswordHash = passwordHasher.Hash(model.Password),
             RoleId = RoleIds.Cliente,
+            CustomerId = customer.Id,
             IsActive = true,
             CreatedAt = now,
             UpdatedAt = now,
@@ -82,6 +91,46 @@ public sealed class AuthService(
         user.PasswordHash = passwordHasher.Hash(model.NewPassword);
         user.UpdatedAt = DateTime.UtcNow;
         await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<AuthResultModel> UpdateProfileAsync(UpdateProfileModel model, CancellationToken cancellationToken = default)
+    {
+        var name = model.Name.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new InvalidOperationException("El nombre completo es obligatorio.");
+        }
+
+        var user = await userRepository.GetByIdAsync(model.UserId, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Usuario no encontrado.");
+
+        if (!user.IsActive)
+        {
+            throw new UnauthorizedAccessException("La cuenta está desactivada.");
+        }
+
+        user.FullName = name;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        if (user.CustomerId is not null)
+        {
+            var customer = await customerRepository.GetByIdTrackedAsync(user.CustomerId.Value, cancellationToken);
+            if (customer is not null)
+            {
+                customer.FullName = name;
+            }
+        }
+        else
+        {
+            var customer = await customerRepository.GetOrCreateAsync(name, user.Email, cancellationToken);
+            user.CustomerId = customer.Id;
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        var updated = await userRepository.GetByIdAsync(model.UserId, cancellationToken)
+            ?? throw new InvalidOperationException("No se pudo actualizar el perfil.");
+
+        return BuildAuthResult(updated);
     }
 
     private AuthResultModel BuildAuthResult(User user) => new()

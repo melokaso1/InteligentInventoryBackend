@@ -83,6 +83,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<ProductEmbedding> ProductEmbeddings => Set<ProductEmbedding>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -102,6 +103,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         ConfigureUser(modelBuilder);
         ConfigureChat(modelBuilder);
         ConfigureProductEmbedding(modelBuilder);
+        ConfigureNotification(modelBuilder);
     }
 
     private static void ConfigureLookups(ModelBuilder modelBuilder)
@@ -233,6 +235,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(s => s.Total).HasPrecision(18, 2);
             entity.Property(s => s.Status).HasConversion<int>();
             entity.Property(s => s.Origin).HasConversion<int>();
+            entity.Property(s => s.FulfillmentStatus).HasConversion<int>();
+            entity.Property(s => s.DeliveryAddress).HasMaxLength(300);
+            entity.Property(s => s.DeliveryCity).HasMaxLength(100);
 
             entity.HasOne(s => s.Customer)
                 .WithMany(c => c.Sales)
@@ -365,6 +370,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany(p => p.Embeddings)
                 .HasForeignKey(pe => pe.ProductId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureNotification(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasIndex(n => n.UserId);
+            entity.HasIndex(n => new { n.UserId, n.IsRead });
+            entity.Property(n => n.Title).HasMaxLength(200);
+            entity.Property(n => n.Message).HasMaxLength(1000);
+            entity.Property(n => n.Type).HasMaxLength(50);
+
+            entity.HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.Sale)
+                .WithMany()
+                .HasForeignKey(n => n.SaleId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

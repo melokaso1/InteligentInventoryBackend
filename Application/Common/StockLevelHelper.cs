@@ -2,6 +2,9 @@ namespace Application.Common;
 
 public static class StockLevelHelper
 {
+    public static decimal ClampStock(decimal stock, decimal maxStock) =>
+        maxStock <= 0 ? 0m : Math.Max(0m, Math.Min(stock, maxStock));
+
     public static (string StockLevel, decimal StockPercent) GetStockLevel(decimal stock, decimal maxStock)
     {
         if (maxStock <= 0)

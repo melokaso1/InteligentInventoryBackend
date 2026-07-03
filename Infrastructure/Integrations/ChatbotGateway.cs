@@ -40,7 +40,12 @@ public sealed class ChatbotGateway(
 
             using var response = await httpClient.PostAsJsonAsync(
                 endpoint,
-                new FastApiChatRequest(request.SessionId, request.Message, statePayload),
+                new FastApiChatRequest(
+                    request.SessionId,
+                    request.Message,
+                    statePayload,
+                    request.CustomerName,
+                    request.CustomerEmail),
                 cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -98,7 +103,7 @@ public sealed class ChatbotGateway(
 
         try
         {
-            using var response = await httpClient.GetAsync(endpoint, cancellationToken);
+           using var response = await httpClient.GetAsync(endpoint, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 return null;
@@ -179,7 +184,9 @@ public sealed class ChatbotGateway(
     private sealed record FastApiChatRequest(
         [property: JsonPropertyName("sessionId")] string SessionId,
         [property: JsonPropertyName("message")] string Message,
-        [property: JsonPropertyName("state")] object? State);
+        [property: JsonPropertyName("state")] object? State,
+        [property: JsonPropertyName("customerName")] string? CustomerName = null,
+        [property: JsonPropertyName("customerEmail")] string? CustomerEmail = null);
 
     private sealed class FastApiChatResponse
     {

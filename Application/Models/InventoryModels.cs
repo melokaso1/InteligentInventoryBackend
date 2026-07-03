@@ -1,3 +1,4 @@
+using Domain.Entities;
 namespace Application.Models;
 
 public sealed class InventoryQueryModel
@@ -34,6 +35,15 @@ public sealed class AdjustmentModel
     public Guid? ProductId { get; init; }
     public string? ProductCode { get; init; }
     public decimal QuantityChange { get; init; }
+    public decimal? MaxStock { get; init; }
     public string? Reason { get; init; }
     public string? Detail { get; init; }
+}
+
+public sealed class AdjustmentResultModel
+{
+    public InventoryMovement Movement { get; init; } = null!;
+    public decimal ResultingStock { get; init; }
+    public decimal MaxStock { get; init; }
+    public bool StockCapped { get; init; }
 }

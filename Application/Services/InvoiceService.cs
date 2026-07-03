@@ -8,6 +8,7 @@ namespace Application.Services;
 
 public sealed class InvoiceService(
     IInvoiceRepository invoiceRepository,
+    ISaleRepository saleRepository,
     ICustomerRepository customerRepository,
     IProductRepository productRepository,
     IUserRepository userRepository,
@@ -15,7 +16,7 @@ public sealed class InvoiceService(
     IInventoryStockService inventoryStockService,
     IUnitOfWork unitOfWork) : IInvoiceService
 {
-    private const decimal TaxRate = 0.08m;
+    private const decimal TaxRate = 0.19m;
 
     public async Task<PagedResult<Invoice>> GetInvoicesAsync(InvoiceQueryModel query, CancellationToken cancellationToken = default)
     {
@@ -248,6 +249,7 @@ public sealed class InvoiceService(
             async ct =>
             {
                 var now = DateTime.UtcNow;
+                var orderNumber = $"ORD-{now:yyyyMMddHHmmssfff}";
                 var invoiceNumber = $"INV-{now:yyyyMMddHHmmssfff}";
 
                 var movements = await inventoryStockService.DeductStockAsync(
@@ -257,10 +259,41 @@ public sealed class InvoiceService(
                     now,
                     ct);
 
+                var sale = new Sale
+                {
+                    Id = Guid.NewGuid(),
+                    OrderNumber = orderNumber,
+                    CustomerId = customer.Id,
+                    Customer = customer,
+                    CustomerName = customer.FullName,
+                    CustomerEmail = customer.Email,
+                    Origin = SaleOrigin.Manual,
+                    Status = SaleStatus.Invoiced,
+                    FulfillmentStatus = FulfillmentStatus.Preparing,
+                    PreparingSince = now,
+                    Subtotal = subtotal,
+                    Tax = tax,
+                    Total = total,
+                    CreatedAt = now,
+                    LineItems = resolvedLines
+                        .Select(li => new SaleLineItem
+                        {
+                            Id = Guid.NewGuid(),
+                            ProductId = li.Product.Id,
+                            Product = li.Product,
+                            Description = $"{li.Product.Name} ({li.Product.Code})",
+                            Quantity = li.Quantity,
+                            MeasureUnit = li.Product.SaleUnit,
+                            UnitPrice = li.Product.Price,
+                        })
+                        .ToList(),
+                };
+
                 var invoice = new Invoice
                 {
                     Id = Guid.NewGuid(),
                     InvoiceNumber = invoiceNumber,
+                    SaleId = sale.Id,
                     CustomerId = customer.Id,
                     ClientName = customerName,
                     ClientInitials = BuildInitials(customerName),
@@ -287,6 +320,7 @@ public sealed class InvoiceService(
                 };
 
                 movementRepository.AddRange(movements.ToList());
+                saleRepository.Add(sale);
                 invoiceRepository.Add(invoice);
                 await unitOfWork.SaveChangesAsync(ct);
                 created = invoice;
@@ -352,6 +386,13 @@ public sealed class InvoiceService(
         invoice.BillingNote = string.IsNullOrWhiteSpace(invoice.BillingNote)
             ? paymentNote
             : $"{invoice.BillingNote.Trim()} {paymentNote}";
+
+        if (invoice.Sale is not null
+            && invoice.Sale.FulfillmentStatus is not (FulfillmentStatus.Shipped or FulfillmentStatus.Delivered))
+        {
+            invoice.Sale.FulfillmentStatus = FulfillmentStatus.Preparing;
+            invoice.Sale.PreparingSince ??= DateTime.UtcNow;
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return invoice;

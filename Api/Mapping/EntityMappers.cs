@@ -1,5 +1,6 @@
 using Api.Dtos;
 using Application.Common;
+using Application.Models;
 using Domain.Entities;
 using Domain.Enums;
 using Domain.Extensions;
@@ -39,12 +40,29 @@ public static class EntityMappers
             Category = product.Category.Name,
             Warehouse = product.GetWarehouseName(),
             Quantity = product.GetStock(),
+            MaxStock = product.GetMaxStock(),
             UnitPrice = product.Price,
             StockLevel = stockLevel,
             StockPercent = stockPercent,
             Icon = product.Icon,
         };
     }
+
+    public static AdjustmentResultDto ToAdjustmentResultDto(this AdjustmentResultModel result) =>
+        new()
+        {
+            Id = result.Movement.Id,
+            Type = ToFrontendStockMovementType(result.Movement.Type),
+            Sku = result.Movement.Product?.Code ?? string.Empty,
+            Change = result.Movement.QuantityChange > 0
+                ? $"+{result.Movement.QuantityChange}"
+                : result.Movement.QuantityChange.ToString(),
+            Timestamp = result.Movement.CreatedAt.ToString("O"),
+            Detail = result.Movement.Detail,
+            ResultingStock = result.ResultingStock,
+            MaxStock = result.MaxStock,
+            StockCapped = result.StockCapped,
+        };
 
     public static StockMovementDto ToStockMovementDto(this InventoryMovement movement) =>
         new()
@@ -67,12 +85,18 @@ public static class EntityMappers
             Date = sale.CreatedAt.ToString("O"),
             Total = sale.Total,
             Status = ToFrontendSaleStatus(sale.Status),
+            FulfillmentStatus = ToFrontendFulfillmentStatus(sale.FulfillmentStatus),
+            PreparingSince = sale.PreparingSince?.ToString("O"),
+            ShippedAt = sale.ShippedAt?.ToString("O"),
+            DeliveredAt = sale.DeliveredAt?.ToString("O"),
             LineItems = sale.LineItems.Select(ToSaleLineItemDto).ToList(),
             Subtotal = sale.Subtotal,
             Tax = sale.Tax,
             GrandTotal = sale.Total,
             OrderNumber = sale.OrderNumber,
             InvoiceNumber = sale.Invoice?.InvoiceNumber,
+            DeliveryAddress = sale.DeliveryAddress,
+            DeliveryCity = sale.DeliveryCity,
         };
 
     public static SaleLineItemDto ToSaleLineItemDto(this SaleLineItem lineItem) =>
@@ -104,6 +128,8 @@ public static class EntityMappers
             InvoiceNumber = invoice.InvoiceNumber,
             SaleId = invoice.SaleId,
             Source = ToInvoiceSource(invoice),
+            DeliveryAddress = invoice.Sale?.DeliveryAddress,
+            DeliveryCity = invoice.Sale?.DeliveryCity,
         };
 
     public static InvoiceLineItemDto ToInvoiceLineItemDto(this InvoiceLineItem lineItem) =>
@@ -180,6 +206,46 @@ public static class EntityMappers
         SaleOrigin.Chatbot => "chatbot",
         _ => "manual",
     };
+
+    public static string ToFrontendFulfillmentStatus(FulfillmentStatus status) => status switch
+    {
+        FulfillmentStatus.Preparing => "preparing",
+        FulfillmentStatus.Shipped => "shipped",
+        FulfillmentStatus.Delivered => "delivered",
+        _ => "preparing",
+    };
+
+    public static bool TryParseFulfillmentStatus(string status, out FulfillmentStatus parsed)
+    {
+        var normalized = status.Trim().ToLowerInvariant();
+        parsed = normalized switch
+        {
+            "preparing" => FulfillmentStatus.Preparing,
+            "shipped" => FulfillmentStatus.Shipped,
+            "delivered" => FulfillmentStatus.Delivered,
+            _ => FulfillmentStatus.Preparing,
+        };
+
+        return normalized is "preparing" or "shipped" or "delivered";
+    }
+
+    public static NotificationListDto ToNotificationListDto(this NotificationListModel model) =>
+        new()
+        {
+            UnreadCount = model.UnreadCount,
+            Items = model.Items
+                .Select(i => new NotificationDto
+                {
+                    Id = i.Id,
+                    Title = i.Title,
+                    Message = i.Message,
+                    Type = i.Type,
+                    SaleId = i.SaleId,
+                    IsRead = i.IsRead,
+                    CreatedAt = i.CreatedAt,
+                })
+                .ToList(),
+        };
 
     public static string ToFrontendInvoiceStatus(InvoiceStatus status) => status switch
     {

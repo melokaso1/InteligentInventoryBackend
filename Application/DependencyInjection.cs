@@ -1,3 +1,4 @@
+using Application.Abstractions;
 using Application.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,6 +16,8 @@ public static class DependencyInjection
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IDispatchService, DispatchService>();
+        services.AddScoped<INotificationService, NotificationService>();
         return services;
     }
 }

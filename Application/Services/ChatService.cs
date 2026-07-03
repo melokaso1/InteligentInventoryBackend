@@ -28,6 +28,7 @@ public sealed class ChatRetentionResult
 public sealed class ChatService(
     IChatbotGateway chatbotGateway,
     IChatSessionRepository chatSessionRepository,
+    IUserRepository userRepository,
     IUnitOfWork unitOfWork) : IChatService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -74,12 +75,16 @@ public sealed class ChatService(
             CreatedAt = DateTime.UtcNow,
         });
 
+        var user = await userRepository.GetByIdAsync(userId, cancellationToken);
+
         var result = await chatbotGateway.SendMessageAsync(
             new ChatMessageRequest
             {
                 SessionId = sessionToken,
                 Message = request.Message,
                 StateJson = stateJson,
+                CustomerName = user?.FullName,
+                CustomerEmail = user?.Email,
             },
             cancellationToken);
 

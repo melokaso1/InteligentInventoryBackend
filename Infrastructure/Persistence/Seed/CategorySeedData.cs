@@ -6,6 +6,8 @@ namespace Infrastructure.Persistence.Seed;
 // o reiniciar la API (upsert añade categorías/productos PLZ-* faltantes y sincroniza nombres en existentes).
 public static class CategorySeedData
 {
+    public static int ExpectedCategoryCount => DefaultCategoryNames.Length;
+
     public static readonly string[] DefaultCategoryNames =
     [
         "Alucinógenos",
