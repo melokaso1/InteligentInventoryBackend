@@ -157,17 +157,12 @@ internal static class QaCatalogCleanup
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
-        var categoryByName = await context.Categories.ToDictionaryAsync(c => c.Name, cancellationToken);
-        var warehouseByName = await context.Warehouses.ToDictionaryAsync(w => w.Name, cancellationToken);
-
-        if (warehouseByName.Count == 0)
+        if (!await context.Warehouses.AnyAsync(cancellationToken))
         {
             return 0;
         }
 
-        var validCodes = ProductSeedData.GetAll(categoryByName, warehouseByName)
-            .Select(p => p.Code.ToUpper())
-            .ToHashSet();
+        var validCodes = ProductSeedData.ValidSeedProductCodes();
 
         var retiredIds = await context.Products
             .Where(p => p.Code.ToUpper().StartsWith("PLZ-") && !validCodes.Contains(p.Code.ToUpper()))

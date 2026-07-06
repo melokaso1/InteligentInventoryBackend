@@ -286,6 +286,16 @@ internal static class ProductSeedData
         Dictionary<string, Warehouse> warehouseByName) =>
         GetAll(categoryByName, warehouseByName);
 
+    /// <summary>Valid PLZ-* codes from seed definitions (does not require DB categories).</summary>
+    internal static HashSet<string> ValidSeedProductCodes()
+    {
+        var categories = CategorySeedData.Create().ToDictionary(c => c.Name);
+        var warehouses = WarehouseSeedData.Create().ToDictionary(w => w.Name);
+        return GetAll(categories, warehouses)
+            .Select(p => p.Code.ToUpperInvariant())
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
     private static Dictionary<string, Category> StubCategories() =>
         CategorySeedData.Create().ToDictionary(c => c.Name);
 
@@ -312,9 +322,8 @@ internal static class ProductSeedData
 
     {
 
-        var category = categoryByName[categoryName];
-
-        var warehouse = warehouseByName[warehouseName];
+        var category = ResolveCategory(categoryByName, categoryName);
+        var warehouse = ResolveWarehouse(warehouseByName, warehouseName);
 
         var now = DateTime.UtcNow;
 
@@ -384,6 +393,45 @@ internal static class ProductSeedData
 
     }
 
+    private static Category ResolveCategory(Dictionary<string, Category> categoryByName, string categoryName)
+    {
+        if (categoryByName.TryGetValue(categoryName, out var category))
+        {
+            return category;
+        }
+
+        foreach (var (name, value) in categoryByName)
+        {
+            if (string.Equals(name, categoryName, StringComparison.OrdinalIgnoreCase))
+            {
+                return value;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Categoría de seed «{categoryName}» no encontrada. " +
+            $"Disponibles en BD: [{string.Join(", ", categoryByName.Keys)}]. " +
+            "Reinicia la API; si persiste, ejecuta «docker compose down -v && docker compose up -d» desde Backend/.");
+    }
+
+    private static Warehouse ResolveWarehouse(Dictionary<string, Warehouse> warehouseByName, string warehouseName)
+    {
+        if (warehouseByName.TryGetValue(warehouseName, out var warehouse))
+        {
+            return warehouse;
+        }
+
+        foreach (var (name, value) in warehouseByName)
+        {
+            if (string.Equals(name, warehouseName, StringComparison.OrdinalIgnoreCase))
+            {
+                return value;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Almacén de seed «{warehouseName}» no encontrado. " +
+            $"Disponibles en BD: [{string.Join(", ", warehouseByName.Keys)}].");
+    }
+
 }
-
-

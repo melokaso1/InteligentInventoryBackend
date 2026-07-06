@@ -18,9 +18,10 @@ internal static class CatalogSeedUpsert
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
+        // Categories must exist before any ProductSeedData.GetAll() that reads from the DB.
+        var categoriesAdded = await UpsertCategoriesAsync(context, cancellationToken);
         await QaCatalogCleanup.RemoveRetiredSeedProductsAsync(context, logger, cancellationToken);
 
-        var categoriesAdded = await UpsertCategoriesAsync(context, cancellationToken);
         var productsAdded = await UpsertProductsAsync(context, logger, cancellationToken);
         var productsSynced = await SyncExistingProductsAsync(context, logger, cancellationToken);
         return new UpsertResult(categoriesAdded, productsAdded, productsSynced);

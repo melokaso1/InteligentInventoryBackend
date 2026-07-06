@@ -251,6 +251,22 @@ Falló la migración o el seed de la base de datos...
 2. Ejecuta `docker compose up -d` desde `Backend/`.
 3. Verifica que el puerto **5433** no esté ocupado por otro servicio.
 
+### Error «Alucinógenos» / KeyNotFoundException al iniciar
+
+En bases de datos nuevas, versiones antiguas del seed intentaban leer productos antes de crear las categorías. **Actualiza el código** y reinicia la API.
+
+Si el error persiste tras actualizar:
+
+```bash
+cd Backend
+docker compose down -v
+docker compose up -d
+cd Api
+dotnet run
+```
+
+Eso borra la base local y la vuelve a sembrar desde cero (solo afecta datos de desarrollo).
+
 ### `dotnet build` falla: DLL bloqueada (Windows)
 
 ```
