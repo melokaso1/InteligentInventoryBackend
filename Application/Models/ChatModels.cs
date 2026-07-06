@@ -9,6 +9,16 @@ public sealed class ChatMessageRequest
     public string? CustomerEmail { get; set; }
 }
 
+public sealed class ChatCartLineItem
+{
+    public string ProductCode { get; set; } = string.Empty;
+    public string ProductName { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public string? MeasureUnit { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal Subtotal { get; set; }
+}
+
 public sealed class ChatOperationSummary
 {
     public string TransactionId { get; set; } = string.Empty;
@@ -21,6 +31,7 @@ public sealed class ChatOperationSummary
     public decimal Subtotal { get; set; }
     public decimal Tax { get; set; }
     public decimal Total { get; set; }
+    public IReadOnlyList<ChatCartLineItem>? LineItems { get; set; }
 }
 
 public sealed class ChatProductOffer

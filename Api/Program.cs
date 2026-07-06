@@ -105,7 +105,5 @@ static bool IsAllowedCorsOrigin(string origin)
         return true;
     }
 
-    return uri.Host.EndsWith(".ngrok-free.dev", StringComparison.OrdinalIgnoreCase)
-        || uri.Host.EndsWith(".ngrok.io", StringComparison.OrdinalIgnoreCase)
-        || uri.Host.EndsWith(".ngrok.app", StringComparison.OrdinalIgnoreCase);
+    return uri.Host.Equals("elplonsazo.netlify.app", StringComparison.OrdinalIgnoreCase);
 }

@@ -11,6 +11,16 @@ public sealed class AttachChatSessionRequestDto
     public string SessionId { get; set; } = string.Empty;
 }
 
+public sealed class ChatCartLineItemDto
+{
+    public string ProductCode { get; set; } = string.Empty;
+    public string ProductName { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public string? MeasureUnit { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal Subtotal { get; set; }
+}
+
 public sealed class ChatOperationSummaryDto
 {
     public string TransactionId { get; set; } = string.Empty;
@@ -18,10 +28,12 @@ public sealed class ChatOperationSummaryDto
     public string ProductCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
+    public string? MeasureUnit { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal Subtotal { get; set; }
     public decimal Tax { get; set; }
     public decimal Total { get; set; }
+    public IReadOnlyList<ChatCartLineItemDto>? LineItems { get; set; }
 }
 
 public sealed class ChatProductOfferDto

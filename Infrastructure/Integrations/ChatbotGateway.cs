@@ -13,6 +13,11 @@ public sealed class ChatbotGateway(
     IConfiguration configuration,
     ILogger<ChatbotGateway> logger) : IChatbotGateway
 {
+    private static readonly JsonSerializerOptions JsonReadOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
     public async Task<ChatMessageResult> SendMessageAsync(
         ChatMessageRequest request,
         CancellationToken cancellationToken = default)
@@ -55,7 +60,7 @@ public sealed class ChatbotGateway(
                 throw new InvalidOperationException("El servicio de chatbot no está disponible en este momento.");
             }
 
-            var payload = await response.Content.ReadFromJsonAsync<FastApiChatResponse>(cancellationToken);
+            var payload = await response.Content.ReadFromJsonAsync<FastApiChatResponse>(JsonReadOptions, cancellationToken);
             if (payload is null)
             {
                 throw new InvalidOperationException("Respuesta inválida del servicio de chatbot.");
@@ -156,10 +161,20 @@ public sealed class ChatbotGateway(
                     ProductCode = payload.OperationSummary.ProductCode,
                     ProductName = payload.OperationSummary.ProductName,
                     Quantity = payload.OperationSummary.Quantity,
+                    MeasureUnit = payload.OperationSummary.MeasureUnit ?? "unit",
                     UnitPrice = payload.OperationSummary.UnitPrice,
                     Subtotal = payload.OperationSummary.Subtotal,
                     Tax = payload.OperationSummary.Tax,
                     Total = payload.OperationSummary.Total,
+                    LineItems = payload.OperationSummary.LineItems?.Select(item => new ChatCartLineItem
+                    {
+                        ProductCode = item.ProductCode,
+                        ProductName = item.ProductName,
+                        Quantity = item.Quantity,
+                        MeasureUnit = item.MeasureUnit,
+                        UnitPrice = item.UnitPrice,
+                        Subtotal = item.Subtotal,
+                    }).ToList(),
                 },
             Offers = payload.Offers?.Select(o => new ChatProductOffer
             {
@@ -233,6 +248,27 @@ public sealed class ChatbotGateway(
         public string? SaleUnit { get; set; }
     }
 
+    private sealed class FastApiCartLineItem
+    {
+        [JsonPropertyName("productCode")]
+        public string ProductCode { get; set; } = string.Empty;
+
+        [JsonPropertyName("productName")]
+        public string ProductName { get; set; } = string.Empty;
+
+        [JsonPropertyName("quantity")]
+        public decimal Quantity { get; set; }
+
+        [JsonPropertyName("measureUnit")]
+        public string? MeasureUnit { get; set; }
+
+        [JsonPropertyName("unitPrice")]
+        public decimal UnitPrice { get; set; }
+
+        [JsonPropertyName("subtotal")]
+        public decimal Subtotal { get; set; }
+    }
+
     private sealed class FastApiOperationSummary
     {
         [JsonPropertyName("transactionId")]
@@ -250,6 +286,9 @@ public sealed class ChatbotGateway(
         [JsonPropertyName("quantity")]
         public decimal Quantity { get; set; }
 
+        [JsonPropertyName("measureUnit")]
+        public string? MeasureUnit { get; set; }
+
         [JsonPropertyName("unitPrice")]
         public decimal UnitPrice { get; set; }
 
@@ -261,5 +300,8 @@ public sealed class ChatbotGateway(
 
         [JsonPropertyName("total")]
         public decimal Total { get; set; }
+
+        [JsonPropertyName("lineItems")]
+        public List<FastApiCartLineItem>? LineItems { get; set; }
     }
 }

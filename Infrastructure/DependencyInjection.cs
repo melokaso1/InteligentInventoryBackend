@@ -40,6 +40,7 @@ public static class DependencyInjection
         });
 
         services.AddHostedService<ChatRetentionHostedService>();
+        services.AddHostedService<ChatbotHostedService>();
 
         return services;
     }

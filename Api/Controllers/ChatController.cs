@@ -142,10 +142,20 @@ public sealed class ChatController(IChatService chatService, IChatbotGateway cha
                     ProductCode = result.OperationSummary.ProductCode,
                     ProductName = result.OperationSummary.ProductName,
                     Quantity = result.OperationSummary.Quantity,
+                    MeasureUnit = result.OperationSummary.MeasureUnit,
                     UnitPrice = result.OperationSummary.UnitPrice,
                     Subtotal = result.OperationSummary.Subtotal,
                     Tax = result.OperationSummary.Tax,
                     Total = result.OperationSummary.Total,
+                    LineItems = result.OperationSummary.LineItems?.Select(item => new ChatCartLineItemDto
+                    {
+                        ProductCode = item.ProductCode,
+                        ProductName = item.ProductName,
+                        Quantity = item.Quantity,
+                        MeasureUnit = item.MeasureUnit,
+                        UnitPrice = item.UnitPrice,
+                        Subtotal = item.Subtotal,
+                    }).ToList(),
                 },
             Offers = result.Offers?.Select(o => new ChatProductOfferDto
             {

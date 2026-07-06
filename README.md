@@ -2,6 +2,8 @@
 
 API REST en **.NET 10** con arquitectura **hexagonal** (puertos y adaptadores): dominio desacoplado, casos de uso en Application e infraestructura intercambiable.
 
+> **Instalación:** guía paso a paso en [INSTALACION.md](./INSTALACION.md).
+
 ## Arquitectura
 
 ```
@@ -23,7 +25,7 @@ Backend/
 ## Requisitos
 
 - .NET SDK **10.0**
-- Docker (PostgreSQL en puerto **5433**)
+- **Docker** — solo para PostgreSQL local (puerto **5433**). La API, el chatbot y el frontend no usan contenedores.
 
 ## Configuración
 
@@ -47,16 +49,17 @@ Al ejecutar `dotnet run`, la API carga automáticamente `Backend/.env` (variable
 
 ## Ejecución
 
-### Arranque completo (5 servicios)
+### Arranque completo (4 servicios)
 
-Para que login, dashboard, chatbot con IA y facturas funcionen en local, levanta **todos** los servicios en este orden:
+Para que login, dashboard, chatbot con IA y facturas funcionen en local, levanta **todos** los servicios en este orden. Solo PostgreSQL va en Docker; el resto corre en tu máquina:
 
 ```bash
-# 1. Base de datos (desde la raíz del monorepo)
+# 1. Base de datos (único servicio en Docker)
+cd Backend
 docker compose up -d
 
 # 2. API .NET — http://localhost:5151
-cd Backend/Api
+cd Api
 dotnet run
 
 # 3. Chatbot FastAPI — http://localhost:8000
@@ -68,20 +71,32 @@ cd Frontend
 pnpm dev
 ```
 
-| Servicio | Puerto | Obligatorio para |
-|----------|--------|------------------|
-| PostgreSQL (Docker) | 5433 | API, persistencia |
-| API .NET | **5151** | Login, CRUD, proxy chat |
-| FastAPI chatbot | **8000** | `/chatbot` (consultas) |
-| Vite dev server | 5173 | UI en navegador |
+| Servicio | Cómo se ejecuta | Puerto | Obligatorio para |
+|----------|-----------------|--------|------------------|
+| PostgreSQL | **Docker** (`docker compose`) | 5433 | API, persistencia |
+| API .NET | `dotnet run` | **5151** | Login, CRUD, proxy chat |
+| FastAPI chatbot | `python run.py` | **8000** | `/chatbot` (consultas) |
+| Vite dev server | `pnpm dev` | 5173 | UI en navegador |
 
-### Frontend: localhost y ngrok
+### Frontend: localhost y producción (Netlify)
 
-El proxy de Vite (`Frontend/vite.config.ts`) reenvía `/api` a `http://127.0.0.1:5151`. Tanto **localhost:5173** como un túnel **ngrok** usan el mismo proxy: en ambos casos la API .NET debe estar activa en el puerto **5151**.
+El proxy de Vite (`Frontend/vite.config.ts`) reenvía `/api` a `http://127.0.0.1:5151`. En local, la API .NET debe estar activa en el puerto **5151**.
 
 En desarrollo, `Frontend/src/api/client.ts` usa `API_BASE = ''` (sin `VITE_API_URL`), de modo que las peticiones pasan por el proxy de Vite. No definas `VITE_API_URL` salvo que quieras apuntar a un host distinto.
 
+**Producción:** el frontend se publica en **https://elplonsazo.netlify.app/**. Configura `VITE_API_URL` en Netlify hacia la URL pública de la API .NET. CORS en la API y en el chatbot FastAPI permiten ese origen.
+
 Si el login devuelve **502 Bad Gateway**, la API no está corriendo o no escucha en `:5151`.
+
+### ngrok (túnel local opcional)
+
+Para compartir la UI en desarrollo sin desplegar (`ngrok http 5173` o `ngrok start el-plonsazo --config ngrok.yml.example`):
+
+| Qué | Comportamiento |
+|-----|----------------|
+| Peticiones `fetch` / API | El frontend y el chatbot envían `ngrok-skip-browser-warning: true` automáticamente en hosts ngrok. |
+| CORS | ngrok **no** es un origen autorizado en producción; usa Netlify o localhost. |
+| Primera visita (plan gratuito) | ngrok muestra **Visit Site** una vez por dispositivo. Ver `Frontend/README.md`. |
 
 ### Códigos de error HTTP (desarrollo local)
 
@@ -90,12 +105,6 @@ Si el login devuelve **502 Bad Gateway**, la API no está corriendo o no escucha
 | **502** | `/api/auth/login`, `/api/dashboard/*` | Vite no alcanza la API .NET en `http://127.0.0.1:5151` | `cd Backend/Api && dotnet run` |
 | **503** | `/api/chat/message`, `/api/chat/health` | La API responde pero FastAPI no está en `:8000` | `cd LLMChatBot && python run.py` |
 | **401** | Cualquier endpoint autenticado | Token JWT expirado o inválido | Volver a iniciar sesión |
-
-En Windows puedes levantar los 4 servicios con:
-
-```powershell
-.\scripts\start-dev.ps1
-```
 
 ### Antes de compilar (MSB3026 / DLL bloqueadas)
 
@@ -117,10 +126,9 @@ Flujo recomendado: `Ctrl+C` en la terminal de `dotnet run` → si persiste el bl
 ### Solo la API
 
 ```bash
-# Desde la raíz del monorepo
+cd Backend
 docker compose up -d
-
-cd Backend/Api
+cd Api
 dotnet run
 ```
 
@@ -142,14 +150,10 @@ También puedes borrar el producto desde **Productos → icono de papelera** en 
 Para un reset completo de la base de datos:
 
 ```bash
-# Desde la raíz del monorepo — borra el volumen PostgreSQL
+cd Backend
 docker compose down -v
-
-# Levanta PostgreSQL limpio
 docker compose up -d
-
-# Reinicia la API para aplicar migraciones y seed
-cd Backend/Api
+cd Api
 dotnet run
 ```
 
@@ -311,7 +315,10 @@ El chatbot FastAPI invoca este endpoint mediante `dotnet_tools.create_sale`.
 
 ## CORS
 
-Orígenes permitidos: `http://localhost:5173`, `http://localhost:5174`.
+Orígenes permitidos:
+
+- `http://localhost:*` y `http://127.0.0.1:*` (desarrollo)
+- `https://elplonsazo.netlify.app` (producción)
 
 ## Solución
 

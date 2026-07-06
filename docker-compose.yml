@@ -1,3 +1,5 @@
+# PostgreSQL local — único uso de Docker en el proyecto.
+# La API .NET, el chatbot y el frontend se ejecutan directamente en el host.
 services:
   postgres:
     image: pgvector/pgvector:pg16

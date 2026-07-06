@@ -85,16 +85,17 @@ public sealed class ChatService(
             user = await userRepository.GetByIdAsync(userId.Value, cancellationToken);
         }
 
-        var result = await chatbotGateway.SendMessageAsync(
-            new ChatMessageRequest
-            {
-                SessionId = sessionToken,
-                Message = request.Message,
-                StateJson = stateJson,
-                CustomerName = user?.FullName,
-                CustomerEmail = user?.Email,
-            },
-            cancellationToken);
+        var result = EnrichOperationSummary(
+            await chatbotGateway.SendMessageAsync(
+                new ChatMessageRequest
+                {
+                    SessionId = sessionToken,
+                    Message = request.Message,
+                    StateJson = stateJson,
+                    CustomerName = user?.FullName,
+                    CustomerEmail = user?.Email,
+                },
+                cancellationToken));
 
         session.CurrentStateJson = result.StateJson ?? session.CurrentStateJson;
         session.UpdatedAt = DateTime.UtcNow;
@@ -210,6 +211,161 @@ public sealed class ChatService(
         }
     }
 
+    private static ChatMessageResult EnrichOperationSummary(ChatMessageResult result)
+    {
+        if (result.OperationSummary is null)
+        {
+            return result;
+        }
+
+        if (result.OperationSummary.LineItems is { Count: > 0 })
+        {
+            return result;
+        }
+
+        var lineItems = ExtractCartLineItemsFromStateJson(result.StateJson);
+        if (lineItems is null or { Count: 0 })
+        {
+            return result;
+        }
+
+        return new ChatMessageResult
+        {
+            Response = result.Response,
+            State = result.State,
+            StateJson = result.StateJson,
+            InvoiceNumber = result.InvoiceNumber,
+            Chips = result.Chips,
+            OperationSummary = new ChatOperationSummary
+            {
+                TransactionId = result.OperationSummary.TransactionId,
+                Status = result.OperationSummary.Status,
+                ProductCode = result.OperationSummary.ProductCode,
+                ProductName = result.OperationSummary.ProductName,
+                Quantity = result.OperationSummary.Quantity,
+                MeasureUnit = result.OperationSummary.MeasureUnit,
+                UnitPrice = result.OperationSummary.UnitPrice,
+                Subtotal = result.OperationSummary.Subtotal,
+                Tax = result.OperationSummary.Tax,
+                Total = result.OperationSummary.Total,
+                LineItems = lineItems,
+            },
+            Offers = result.Offers,
+            OffersTotalCount = result.OffersTotalCount,
+        };
+    }
+
+    private static IReadOnlyList<ChatCartLineItem>? ExtractCartLineItemsFromStateJson(string? stateJson)
+    {
+        if (string.IsNullOrWhiteSpace(stateJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(stateJson);
+            var root = doc.RootElement;
+
+            var fromCart = ParseCartLineItems(root, "cart");
+            if (fromCart is { Count: > 0 })
+            {
+                return fromCart;
+            }
+
+            if (TryGetProperty(root, "operation_summary", out var summaryEl) ||
+                TryGetProperty(root, "operationSummary", out summaryEl))
+            {
+                var fromSummary = ParseCartLineItems(summaryEl, "lineItems")
+                    ?? ParseCartLineItems(summaryEl, "LineItems");
+                if (fromSummary is { Count: > 0 })
+                {
+                    return fromSummary;
+                }
+            }
+
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static List<ChatCartLineItem>? ParseCartLineItems(JsonElement container, string arrayProperty)
+    {
+        if (!TryGetProperty(container, arrayProperty, out var arrayEl) ||
+            arrayEl.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var items = new List<ChatCartLineItem>();
+        foreach (var item in arrayEl.EnumerateArray())
+        {
+            var parsed = ParseCartLineItem(item);
+            if (parsed is not null)
+            {
+                items.Add(parsed);
+            }
+        }
+
+        return items.Count > 0 ? items : null;
+    }
+
+    private static ChatCartLineItem? ParseCartLineItem(JsonElement item)
+    {
+        var code = GetStringProperty(item, "productCode", "ProductCode");
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return null;
+        }
+
+        return new ChatCartLineItem
+        {
+            ProductCode = code,
+            ProductName = GetStringProperty(item, "productName", "ProductName") ?? code,
+            Quantity = GetDecimalProperty(item, "quantity", "Quantity"),
+            MeasureUnit = GetStringProperty(item, "measureUnit", "MeasureUnit"),
+            UnitPrice = GetDecimalProperty(item, "unitPrice", "UnitPrice"),
+            Subtotal = GetDecimalProperty(item, "subtotal", "Subtotal"),
+        };
+    }
+
+    private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement value) =>
+        element.TryGetProperty(propertyName, out value);
+
+    private static string? GetStringProperty(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
+            {
+                return value.GetString();
+            }
+        }
+
+        return null;
+    }
+
+    private static decimal GetDecimalProperty(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!element.TryGetProperty(name, out var value))
+            {
+                continue;
+            }
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var number))
+            {
+                return number;
+            }
+        }
+
+        return 0m;
+    }
+
     private static string? BuildBotMetadata(ChatMessageResult result)
     {
         var metadata = new
@@ -218,6 +374,7 @@ public sealed class ChatService(
             result.InvoiceNumber,
             result.Chips,
             result.OperationSummary,
+            cart = result.OperationSummary?.LineItems,
             result.Offers,
             result.OffersTotalCount,
         };

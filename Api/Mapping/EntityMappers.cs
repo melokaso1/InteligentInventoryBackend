@@ -261,6 +261,7 @@ public static class EntityMappers
     {
         null => "manual",
         _ when invoice.Sale?.Origin == SaleOrigin.Chatbot => "chatbot",
+        _ when invoice.Sale?.Origin == SaleOrigin.Manual => "manual",
         _ => "sale",
     };
 
