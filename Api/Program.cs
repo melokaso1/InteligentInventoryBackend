@@ -105,5 +105,7 @@ static bool IsAllowedCorsOrigin(string origin)
         return true;
     }
 
-    return uri.Host.Equals("elplonsazo.netlify.app", StringComparison.OrdinalIgnoreCase);
+    // Túneles locales opcionales (ngrok)
+    return uri.Host.EndsWith(".ngrok-free.app", StringComparison.OrdinalIgnoreCase)
+        || uri.Host.EndsWith(".ngrok.io", StringComparison.OrdinalIgnoreCase);
 }

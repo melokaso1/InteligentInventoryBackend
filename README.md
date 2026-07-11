@@ -3,6 +3,8 @@
 API REST en **.NET 10** con arquitectura **hexagonal** (puertos y adaptadores): dominio desacoplado, casos de uso en Application e infraestructura intercambiable.
 
 > **Instalación:** guía paso a paso en [INSTALACION.md](./INSTALACION.md).
+>
+> Entorno previsto: **local**. Docker solo para PostgreSQL; no hay Netlify ni hosting en la nube.
 
 ## Arquitectura
 
@@ -78,13 +80,11 @@ pnpm dev
 | FastAPI chatbot | `python run.py` | **8000** | `/chatbot` (consultas) |
 | Vite dev server | `pnpm dev` | 5173 | UI en navegador |
 
-### Frontend: localhost y producción (Netlify)
+### Frontend (Vite en local)
 
 El proxy de Vite (`Frontend/vite.config.ts`) reenvía `/api` a `http://127.0.0.1:5151`. En local, la API .NET debe estar activa en el puerto **5151**.
 
-En desarrollo, `Frontend/src/api/client.ts` usa `API_BASE = ''` (sin `VITE_API_URL`), de modo que las peticiones pasan por el proxy de Vite. No definas `VITE_API_URL` salvo que quieras apuntar a un host distinto.
-
-**Producción:** el frontend se publica en **https://elplonsazo.netlify.app/**. Configura `VITE_API_URL` en Netlify hacia la URL pública de la API .NET. CORS en la API y en el chatbot FastAPI permiten ese origen.
+En desarrollo, `Frontend/src/api/client.ts` usa `API_BASE = ''` (sin `VITE_API_URL`), de modo que las peticiones pasan por el proxy de Vite. No definas `VITE_API_URL` salvo que quieras apuntar a un host distinto (p. ej. un túnel ngrok de la API).
 
 Si el login devuelve **502 Bad Gateway**, la API no está corriendo o no escucha en `:5151`.
 
@@ -95,7 +95,7 @@ Para compartir la UI en desarrollo sin desplegar (`ngrok http 5173` o `ngrok sta
 | Qué | Comportamiento |
 |-----|----------------|
 | Peticiones `fetch` / API | El frontend y el chatbot envían `ngrok-skip-browser-warning: true` automáticamente en hosts ngrok. |
-| CORS | ngrok **no** es un origen autorizado en producción; usa Netlify o localhost. |
+| CORS | Se permiten orígenes `localhost`, `127.0.0.1` y hosts `*.ngrok-free.app` / `*.ngrok.io`. |
 | Primera visita (plan gratuito) | ngrok muestra **Visit Site** una vez por dispositivo. Ver `Frontend/README.md`. |
 
 ### Códigos de error HTTP (desarrollo local)
@@ -315,10 +315,12 @@ El chatbot FastAPI invoca este endpoint mediante `dotnet_tools.create_sale`.
 
 ## CORS
 
-Orígenes permitidos:
+Orígenes permitidos (desarrollo local y túneles):
 
-- `http://localhost:*` y `http://127.0.0.1:*` (desarrollo)
-- `https://elplonsazo.netlify.app` (producción)
+- `http://localhost:*` y `http://127.0.0.1:*`
+- hosts `*.ngrok-free.app` y `*.ngrok.io` (túnel opcional)
+
+No hay despliegue en Netlify ni en hosting en la nube: el entorno previsto es local.
 
 ## Solución
 

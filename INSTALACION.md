@@ -2,6 +2,8 @@
 
 Guía paso a paso para levantar la API .NET en local. Para arquitectura, endpoints y modelo de datos, consulta [README.md](./README.md).
 
+> Todo el stack corre en tu máquina. **Docker solo levanta PostgreSQL.** No hay hosting en Netlify ni en la nube.
+
 ## Requisitos previos
 
 | Herramienta | Versión mínima | Verificar |
@@ -303,10 +305,6 @@ Revisa los logs de la API. Causas habituales:
 ### Catálogo incompleto o producto de prueba `TEST-001`
 
 Reinicia la API: en cada arranque se eliminan SKUs de prueba legacy. Si persiste el problema, haz reset de la base (ver sección anterior).
-
-### Login en Netlify no funciona
-
-El frontend en **https://elplonsazo.netlify.app** necesita una API .NET accesible desde internet. Configura `VITE_API_URL` en Netlify apuntando a tu API pública y añade ese origen en CORS (`Program.cs`).
 
 ## Compilar la solución
 
