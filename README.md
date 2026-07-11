@@ -6,6 +6,22 @@ API REST en **.NET 10** con arquitectura **hexagonal** (puertos y adaptadores): 
 >
 > Entorno previsto: **local**. Docker solo para PostgreSQL; no hay Netlify ni hosting en la nube.
 
+## Repositorios
+
+| Módulo | Repositorio | Rol |
+|--------|-------------|-----|
+| **Backend** (este repo) | https://github.com/melokaso1/InteligentInventoryBackend | API .NET, PostgreSQL, proxy del chat |
+| **Frontend** | https://github.com/melokaso1/InteligentInventoryFrontend | UI React + Vite (`pnpm dev` → `:5173`) |
+| **Chatbot** | https://github.com/melokaso1/InteligentInventoryLLMChatBot | FastAPI + LangGraph (`python run.py` → `:8000`) |
+
+Clona los tres en carpetas hermanas (por ejemplo `Backend/`, `Frontend/`, `LLMChatBot/`) para que el arranque automático del chatbot (`Chatbot:AutoStart`) encuentre el servicio Python.
+
+Documentación de cada módulo:
+
+- Backend: [INSTALACION.md](./INSTALACION.md) (esta carpeta)
+- Frontend: [README del frontend](https://github.com/melokaso1/InteligentInventoryFrontend#readme)
+- Chatbot: [README del chatbot](https://github.com/melokaso1/InteligentInventoryLLMChatBot#readme)
+
 ## Arquitectura
 
 ```
